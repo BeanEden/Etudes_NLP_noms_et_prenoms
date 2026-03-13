@@ -361,6 +361,16 @@
           <input type="number" name="longueur_max" step="1" min="5" max="30" value="15" required>
         </div>
       </div>
+      <div class="form-group" style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
+        <div>
+          <label>Candidats max (lev_k) <span class="tooltip-icon">?<span class="tooltip-content"><b>Voisins Levenshtein par nom</b><br>Nombre max de candidats retenus après filtrage JaroWinkler.</span></span></label>
+          <input type="number" name="lev_k" step="1" min="10" max="200" value="40" required>
+        </div>
+        <div>
+          <label>Échantillon éval.</label>
+          <input type="number" name="n_eval_paires" step="50" min="50" max="1000" value="200" required>
+        </div>
+      </div>
 
       <button type="button" class="btn-eval" onclick="evaluerModele('noms')">Évaluer le modèle</button>
       <div id="eval-noms" class="eval-box"></div>
@@ -402,43 +412,48 @@
               Baisse (<0.7) : Beaucoup de faux positifs. </span>
             </span>
         </label>
-        <input type="number" name="seuil_lev" step="0.01" min="0.5" max="1.0" value="0.82" required>
+        <input type="number" name="seuil_faiss" step="0.01" min="0.5" max="1.0" value="0.78" required>
       </div>
 
       <div class="form-group">
         <label>
-          Seuil CamemBERT (Sémantique)
+          Seuil FAISS (Cosinus CamemBERT)
           <span class="tooltip-icon">?
             <span class="tooltip-content">
               <b>Proximité Cosinus LLM</b>
-              Hausse (>0.85) : Les phrases explicatives doivent être presque identiques (Précision).<br>
-              Baisse (<0.7) : Tolère de fortes disparités syntaxiques mais peut fusionner des origines distinctes
-                (Rappel). </span>
+              Hausse (&gt;0.85) : Les phrases doivent être presque identiques (Précision).<br>
+              Baisse (&lt;0.7) : Tolère des disparités syntaxiques. </span>
             </span>
         </label>
-        <input type="number" name="seuil_sem" step="0.01" min="0.5" max="1.0" value="0.78" required>
+        <input type="number" name="seuil_faiss" step="0.01" min="0.5" max="1.0" value="0.78" required>
       </div>
 
       <div class="form-group">
-        <label>
-          Score Final (Fusion)
-          <span class="tooltip-icon">?
-            <span class="tooltip-content">
-              Mix équilibré calculé en aval. Diminuer pour lier les petits clusters isolés.
-            </span>
-          </span>
+        <label>Score Final (Fusion)
+          <span class="tooltip-icon">?<span class="tooltip-content">Mix pondéré : sim_FAISS + bonus_langue + bonus_geo. Diminuer pour lier des clusters plus distants.</span></span>
         </label>
         <input type="number" name="seuil_score_final" step="0.01" min="0.5" max="1.0" value="0.60" required>
       </div>
 
       <div class="form-group" style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
         <div>
-          <label>Long. préfixe</label>
-          <input type="number" name="prefixe_len" step="1" min="1" max="5" value="2" required>
+          <label>Bonus Langue <span class="tooltip-icon">?<span class="tooltip-content">Bonus si même langue d'origine. Défaut : 0.04.</span></span></label>
+          <input type="number" name="bonus_langue" step="0.01" min="0.0" max="0.2" value="0.04" required>
         </div>
         <div>
-          <label>Facteur L_max</label>
-          <input type="number" name="longueur_max" step="1" min="5" max="30" value="12" required>
+          <label>Bonus Géo <span class="tooltip-icon">?<span class="tooltip-content">Bonus si même provenance géographique. Défaut : 0.02.</span></span></label>
+          <input type="number" name="bonus_geo" step="0.01" min="0.0" max="0.2" value="0.02" required>
+        </div>
+      </div>
+
+      <div class="form-group" style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
+        <div>
+          <label>K voisins FAISS</label>
+          <input type="number" name="k_voisins_sem" step="1" min="5" max="100" value="20" required>
+        </div>
+        <div>
+          <label>Échantillon éval.</label>
+          <input type="number" name="n_eval_paires" step="50" min="50" max="1000" value="200" required>
         </div>
       </div>
 
@@ -573,31 +588,27 @@
       box.className = 'eval-box ' + warnLevel;
       box.innerHTML = msg;
     }
-    // PRENOMS (CamemBERT)
+    // PRENOMS (CamemBERT + FAISS)
     else {
-      const lev = parseFloat(form.seuil_lev.value);
-      const sem = parseFloat(form.seuil_sem.value);
-      const prefix = parseInt(form.prefixe_len.value);
+      const faiss  = parseFloat(form.seuil_faiss.value);
+      const k      = parseInt(form.k_voisins_sem.value);
 
-      let msg = "<strong>Évaluation (CamemBERT) :</strong><br><br>";
+      let msg = '<strong>Evaluation (CamemBERT + FAISS) :</strong><br><br>';
       let warnLevel = 'ok';
 
-      msg += "<b>IA Générative</b> : CamemBERT occupera par défaut ~1.5 GB en RAM pour le modèle PyTorch.<br><br>";
+      msg += '<b>IA</b> : CamemBERT occupera ~1.5 GB RAM.<br><br>';
 
-      if (prefix === 1 && lev < 0.75) {
-        msg += "<b>Saturation RAM (~6-10 GB)</b>: Nombre absurde de textes à inférer. Risque de crash Out-Of-Memory si pas de Swap.<br>";
-        warnLevel = 'danger';
-      } else {
-        msg += "<b>Machine standard (8GB+)</b>: Compatible. Calcul des embeddings environ 30-45s.<br>";
-      }
-
-      if (sem < 0.7) {
-        msg += "<b>Sous-ajustement (Underfitting) sémantique</b>: Les phrases d'origine seront matchées même avec un contexte lointain (taux d'erreur de clustering élévé).<br>";
+      if (faiss < 0.7) {
+        msg += '<b>Sous-ajustement semantique</b>: Seuil trop bas, taux d erreur eleve.<br>';
         if (warnLevel === 'ok') warnLevel = 'warning';
-      } else if (sem > 0.85) {
-        msg += "<b>Suroptimisation (Overfitting)</b>: Réduction stricte aux synonymes NLP pur (ex: même phrase au mot près).<br>";
+      } else if (faiss > 0.88) {
+        msg += '<b>Suroptimisation</b>: Rappel tres faible, seuls les quasi-synonymes exacts seront groupes.<br>';
       } else {
-        msg += "<b>Compréhension Langage Naturel (NLP) performante</b>: L'algorithme tolèrera les structures de phrases synonymiques sans casser les groupements forts.<br>";
+        msg += '<b>Comprehension NLP performante</b>: Bon equilibre precision/rappel.<br>';
+      }
+      if (k > 50) {
+        msg += '<b>RAM elevee</b>: K voisins eleve multiplie les calculs. Prevoir 4 GB+ libres.<br>';
+        if (warnLevel === 'ok') warnLevel = 'warning';
       }
 
       box.className = 'eval-box ' + warnLevel;
