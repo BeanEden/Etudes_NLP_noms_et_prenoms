@@ -1,0 +1,348 @@
+{% extends "base.html" %}
+
+{% block title %}{% if query %}Résultats — {{ query }}{% else %}Recherche{% endif %} — Etymia{% endblock %}
+
+{% block head %}
+<style>
+  /* ── Hero ──────────────────────────────────────────────────────── */
+  .hero {
+    text-align: center;
+    padding: 5rem 1rem 3.5rem;
+  }
+  .hero-eyebrow {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 0.82rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 1.1rem;
+  }
+  .hero h1 {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: clamp(2.8rem, 6vw, 4.4rem);
+    font-weight: 300;
+    color: var(--navy);
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+    margin-bottom: 0.4rem;
+  }
+  .hero h1 em {
+    font-style: italic;
+    color: var(--gold);
+  }
+  .hero-sub {
+    color: var(--text-soft);
+    font-size: 0.95rem;
+    font-style: italic;
+    margin-bottom: 2.8rem;
+  }
+
+  /* ── Barre de recherche centrale ──────────────────────────────── */
+  .search-center {
+    max-width: 580px;
+    margin: 0 auto;
+    position: relative;
+  }
+  .search-box {
+    display: flex;
+    align-items: center;
+    background: #fff;
+    border: 1.5px solid var(--border);
+    border-radius: 6px;
+    box-shadow: var(--shadow);
+    overflow: visible;
+    transition: box-shadow 0.2s, border-color 0.2s;
+  }
+  .search-box:focus-within {
+    border-color: var(--navy-light);
+    box-shadow: var(--shadow-deep), 0 0 0 3px rgba(26,43,74,0.07);
+  }
+  .search-box input {
+    flex: 1;
+    border: none;
+    outline: none;
+    padding: 0.9rem 1.3rem;
+    font-family: 'Libre Baskerville', serif;
+    font-size: 1rem;
+    color: var(--text);
+    background: transparent;
+  }
+  .search-box input::placeholder { color: #aaa; }
+  .search-box button {
+    padding: 0 1.4rem;
+    background: var(--navy);
+    color: var(--cream);
+    border: none;
+    border-left: 1.5px solid var(--border);
+    font-size: 0.88rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    cursor: pointer;
+    height: 52px;
+    font-family: 'Libre Baskerville', serif;
+    transition: background 0.2s;
+    border-radius: 0 4px 4px 0;
+  }
+  .search-box button:hover { background: var(--navy-light); }
+
+  .search-ac {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0; right: 0;
+    background: #fff;
+    border: 1.5px solid var(--navy-light);
+    border-radius: 6px;
+    list-style: none;
+    z-index: 200;
+    max-height: 280px;
+    overflow-y: auto;
+    box-shadow: var(--shadow-deep);
+  }
+  .search-ac li a {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    padding: 0.65rem 1.2rem;
+    text-decoration: none;
+    color: var(--text);
+    font-size: 0.92rem;
+    border-bottom: 1px solid var(--cream-dark);
+    transition: background 0.14s;
+  }
+  .search-ac li a:hover { background: var(--cream); color: var(--navy); }
+  .search-ac li a::before {
+    content: '—';
+    color: var(--gold);
+    font-size: 0.7rem;
+  }
+  .search-ac li:last-child a { border-bottom: none; }
+
+  /* ── Grille résultats ──────────────────────────────────────────── */
+  .results-header {
+    margin: 2.5rem 0 1.2rem;
+    display: flex;
+    align-items: baseline;
+    gap: 1rem;
+  }
+  .results-header h2 {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.5rem;
+    font-weight: 400;
+    color: var(--navy);
+  }
+  .results-count {
+    font-size: 0.82rem;
+    color: var(--text-soft);
+    font-style: italic;
+  }
+
+  .results-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 1.1rem;
+  }
+
+  .result-card {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 1.3rem 1.4rem 1.1rem;
+    text-decoration: none;
+    color: inherit;
+    transition: box-shadow 0.2s, transform 0.2s, border-color 0.2s;
+    display: block;
+    position: relative;
+    overflow: hidden;
+  }
+  .result-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.25s;
+  }
+  .result-card.type-nom::before { background: var(--navy); }
+  .result-card.type-prenom::before { background: var(--gold); }
+  .result-card.type-compare::before { background: linear-gradient(90deg, var(--navy), var(--gold)); }
+
+  .result-card:hover {
+    box-shadow: var(--shadow-deep);
+    transform: translateY(-2px);
+    border-color: rgba(26,43,74,0.22);
+  }
+  .result-card:hover::before { transform: scaleX(1); }
+  
+  .badge-nom {
+    display: inline-block; background: var(--navy); color: #fff; font-size: 0.6rem; padding: 0.15rem 0.4rem; border-radius: 4px; vertical-align: middle; margin-left: 0.4rem; letter-spacing: 0.05em; text-transform: uppercase; font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+  }
+  .badge-prenom {
+    display: inline-block; background: var(--gold); color: #fff; font-size: 0.6rem; padding: 0.15rem 0.4rem; border-radius: 4px; vertical-align: middle; margin-left: 0.4rem; letter-spacing: 0.05em; text-transform: uppercase; font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+  }
+  .badge-compare {
+    display: inline-block; background: linear-gradient(90deg, var(--navy), var(--gold)); color: #fff; font-size: 0.6rem; padding: 0.15rem 0.4rem; border-radius: 4px; vertical-align: middle; margin-left: 0.4rem; letter-spacing: 0.05em; text-transform: uppercase; font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+  }
+
+  .result-nom {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.45rem;
+    font-weight: 600;
+    color: var(--navy);
+    margin-bottom: 0.3rem;
+  }
+  .result-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-bottom: 0.6rem;
+  }
+  .result-extrait {
+    font-size: 0.8rem;
+    color: var(--text-soft);
+    font-style: italic;
+    line-height: 1.5;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  /* ── État vide ─────────────────────────────────────────────────── */
+  .empty-state {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: var(--text-soft);
+  }
+  .empty-state p { font-style: italic; font-size: 0.95rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="hero fade-up">
+  <p class="hero-eyebrow">Base étymologique</p>
+  <h1>Origines des <em>noms</em> &amp;<br><em>prénoms</em></h1>
+  <p class="hero-sub">Explorez l'histoire et les connexions de plus de 500 000 noms et prénoms</p>
+
+  <div class="search-center autocomplete-wrap">
+    <form class="search-box" action="/" method="get" autocomplete="off" id="main-form">
+      <input type="text" name="q" id="main-q"
+             placeholder="Rechercher un nom ou prénom..."
+             value="{{ query }}" autofocus>
+      <button type="submit">Rechercher</button>
+    </form>
+    
+    <div class="search-filters" style="display: flex; justify-content: center; gap: 1.5rem; margin-top: 1.2rem; font-family: 'Libre Baskerville', serif; font-size: 0.9rem; color: var(--navy);">
+      <label style="cursor: pointer; display: flex; align-items: center; gap: 0.4rem;">
+        <input type="radio" name="filter" value="all" form="main-form" onchange="document.getElementById('main-form').submit();" {% if not filter or filter not in ['nom', 'prenom'] %}checked{% endif %}> Tous
+      </label>
+      <label style="cursor: pointer; display: flex; align-items: center; gap: 0.4rem;">
+        <input type="radio" name="filter" value="nom" form="main-form" onchange="document.getElementById('main-form').submit();" {% if filter == 'nom' %}checked{% endif %}> Noms
+      </label>
+      <label style="cursor: pointer; display: flex; align-items: center; gap: 0.4rem;">
+        <input type="radio" name="filter" value="prenom" form="main-form" onchange="document.getElementById('main-form').submit();" {% if filter == 'prenom' %}checked{% endif %}> Prénoms
+      </label>
+    </div>
+    
+    <ul class="search-ac" id="main-ac" style="display:none"></ul>
+  </div>
+  
+  {% if error %}
+  <div style="max-width:580px; margin: 1.5rem auto 0; padding: 1rem; background: rgba(184,151,58,0.1); border-left: 3px solid var(--gold); border-radius: 4px; color: var(--navy); font-size: 0.95rem; display: flex; align-items: center; gap: 0.8rem;">
+    <svg width="20" height="20" fill="none" stroke="var(--gold)" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+    {{ error }}
+  </div>
+  {% endif %}
+</div>
+
+{% if query %}
+  <div class="results-header fade-up-2">
+    <h2>Résultats</h2>
+    <span class="results-count">{{ results|length }} nom(s) trouvé(s) pour &laquo;&nbsp;{{ query }}&nbsp;&raquo;</span>
+  </div>
+
+  {% if results %}
+    <div class="results-grid fade-up-3">
+      {% for r in results %}
+      {% if r.type_entite == 'compare' %}
+      <a href="/compare?id1={{ r.id1 }}&type1={{ r.type1 }}&id2={{ r.id2 }}&type2={{ r.type2 }}" class="result-card type-compare" style="grid-column: 1 / -1;">
+        <div class="result-nom">
+          {{ r.nom_original_1 }} &amp; {{ r.nom_original_2 }}
+          <span class="badge-compare">Nom &amp; Prénom</span>
+        </div>
+        <div class="result-meta">
+          <span class="tag">Comparatif</span>
+        </div>
+        {% if r.texte_resume %}
+        <div class="result-extrait">{{ r.texte_resume[:160] }}</div>
+        {% endif %}
+      </a>
+      {% else %}
+      <a href="/{{ r.type_entite }}/{{ r.nom if r.type_entite == 'nom' else r.prenom }}" class="result-card type-{{ r.type_entite }}">
+        <div class="result-nom">
+          {{ r.nom_original if r.type_entite == 'nom' else r.prenom_original }} 
+          <span class="badge-{{ r.type_entite }}">{{ 'Nom' if r.type_entite == 'nom' else 'Prénom' }}</span>
+        </div>
+        <div class="result-meta">
+          {% if r.langue %}<span class="tag">{{ r.langue }}</span>{% endif %}
+          {% if r.geo    %}<span class="tag navy">{{ r.geo }}</span>{% endif %}
+        </div>
+        {% if r.texte_resume %}
+        <div class="result-extrait">{{ r.texte_resume[:160] }}</div>
+        {% endif %}
+      </a>
+      {% endif %}
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="empty-state fade-up-3">
+      <p>Aucun résultat pour &laquo;&nbsp;{{ query }}&nbsp;&raquo;.</p>
+      <p>Essayez une orthographe différente ou un préfixe.</p>
+    </div>
+  {% endif %}
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+  (function() {
+    const input = document.getElementById('main-q');
+    const list  = document.getElementById('main-ac');
+    if (!input) return;
+    let timer;
+
+    input.addEventListener('input', function() {
+      clearTimeout(timer);
+      const q = this.value.trim();
+      if (q.length < 2) { list.style.display = 'none'; return; }
+      timer = setTimeout(function() {
+        const flt = document.querySelector('input[name="filter"]:checked').value;
+        fetch('/api/search?q=' + encodeURIComponent(q) + '&filter=' + flt)
+          .then(r => r.json())
+          .then(data => {
+            if (!data.length) { list.style.display = 'none'; return; }
+            list.innerHTML = data.map(d => {
+              if (d.type_entite === 'compare') {
+                return `<li><a href="/compare?id1=${d.id1}&type1=${d.type1}&id2=${d.id2}&type2=${d.type2}">
+                   ${d.nom_original_1} &amp; ${d.nom_original_2}
+                   <span class="badge-compare" style="transform: scale(0.8); transform-origin: left center; margin-left: 0.2rem;">Nom &amp; Prénom</span>
+                 </a></li>`;
+              } else {
+                return `<li><a href="/${d.type_entite}/${encodeURIComponent(d.nom)}">
+                   ${d.nom_original} 
+                   <span class="badge-${d.type_entite}" style="transform: scale(0.8); transform-origin: left center; margin-left: 0.2rem;">${d.type_entite === 'nom' ? 'Nom' : 'Prénom'}</span>
+                 </a></li>`;
+              }
+            }).join('');
+            list.style.display = 'block';
+          });
+      }, 160);
+    });
+
+    document.addEventListener('click', function(e) {
+      if (!input.contains(e.target) && !list.contains(e.target))
+        list.style.display = 'none';
+    });
+  })();
+</script>
+{% endblock %}

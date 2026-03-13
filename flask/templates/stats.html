@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+
+{% block title %}Statistiques Globales — Etymia{% endblock %}
+
+{% block head %}
+<style>
+  .hero {
+    text-align: center;
+    padding: 5rem 1rem 3.5rem;
+  }
+  .hero-eyebrow {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 0.82rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 1.1rem;
+  }
+  .hero h1 {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: clamp(2.8rem, 6vw, 4.4rem);
+    font-weight: 300;
+    color: var(--navy);
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+    margin-bottom: 0.4rem;
+  }
+  
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1.5rem;
+    max-width: 900px;
+    margin: 0 auto 3rem;
+  }
+  .stat-card {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 2rem;
+    text-align: center;
+    box-shadow: var(--shadow);
+  }
+  .stat-val {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 3rem;
+    color: var(--gold);
+    line-height: 1;
+    margin-bottom: 0.5rem;
+  }
+  .stat-val small { font-size: 1.5rem; color: var(--text-soft); }
+  .stat-desc {
+    font-size: 0.85rem;
+    color: var(--navy);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  
+  /* Tables */
+  .tables-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+    max-width: 1000px;
+    margin: 0 auto 4rem;
+  }
+  @media(max-width: 768px) { .tables-grid { grid-template-columns: 1fr; } }
+  
+  .top-table {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .top-table h2 {
+    background: var(--navy);
+    color: var(--cream);
+    padding: 1rem;
+    margin: 0;
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.4rem;
+    text-align: center;
+  }
+  .top-list { list-style: none; padding: 0; margin: 0; }
+  .top-list li {
+    display: flex;
+    justify-content: space-between;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .top-list li:last-child { border-bottom: none; }
+  .top-list li span:first-child { font-weight: 600; color: var(--navy); }
+  .top-list li span:last-child { color: var(--text-soft); font-style: italic; font-size: 0.9rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="hero fade-up">
+  <p class="hero-eyebrow">Etymia en Chiffres</p>
+  <h1>Statistiques<br>Globales</h1>
+</div>
+
+<div class="stats-grid fade-up-2">
+  <div class="stat-card">
+    <div class="stat-val">{{ "{:,}".format(total_noms).replace(',', ' ') }}</div>
+    <div class="stat-desc">Noms de famille documentés</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-val">{{ "{:,}".format(total_prenoms).replace(',', ' ') }}</div>
+    <div class="stat-desc">Prénoms répertoriés</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-val">{{ "{:,}".format(total_groupes_noms).replace(',', ' ') }}</div>
+    <div class="stat-desc">Groupes de noms (variantes)</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-val">{{ "{:,}".format(total_groupes_prenoms).replace(',', ' ') }}</div>
+    <div class="stat-desc">Groupes de prénoms liés</div>
+  </div>
+</div>
+
+<div class="tables-grid fade-up-3">
+  <div class="top-table">
+    <h2>Noms les plus fréquents (1891-2000)</h2>
+    <ul class="top-list">
+      {% for n in top_noms %}
+        <li>
+          <a href="/nom/{{ n.nom }}" style="text-decoration:none;"><span>{{ n.nom_original }}</span></a>
+          <span>{{ "{:,}".format(n.insee_data.nombre_total).replace(',', ' ') }} naissances</span>
+        </li>
+      {% endfor %}
+    </ul>
+  </div>
+  
+  <div class="top-table">
+    <h2>Prénoms les plus donnés (1900-2024)</h2>
+    <ul class="top-list">
+      {% for p in top_prenoms %}
+        <li>
+          <a href="/prenom/{{ p.prenom }}" style="text-decoration:none;"><span>{{ p.prenom_original }}</span></a>
+        </li>
+      {% endfor %}
+    </ul>
+  </div>
+</div>
+{% endblock %}

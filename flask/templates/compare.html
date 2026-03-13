@@ -1,0 +1,329 @@
+{% extends 'base.html' %}
+{% block title %}Comparateur{% endblock %}
+
+{% block head %}
+<style>
+  .compare-hero {
+    text-align: center;
+    padding: 3rem 1rem 2rem;
+  }
+  .compare-hero h1 {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 2.2rem;
+    color: var(--navy);
+    margin-bottom: 0.5rem;
+  }
+  
+  .compare-selectors {
+    display: flex;
+    gap: 2rem;
+    max-width: 900px;
+    margin: 0 auto 3rem;
+  }
+  .selector-box {
+    flex: 1;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 1.5rem;
+    box-shadow: var(--shadow);
+    position: relative;
+  }
+  .selector-box h3 {
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-soft);
+    margin-bottom: 1rem;
+    text-align: center;
+  }
+  .search-ac {
+    position: absolute; top: calc(100% - 1.5rem); left: 1.5rem; right: 1.5rem; z-index: 100;
+    background: #fff; border: 1px solid var(--border); border-top: none;
+    max-height: 250px; overflow-y: auto; box-shadow: var(--shadow-deep);
+  }
+  .search-ac li { list-style: none; }
+  .search-ac a {
+    display: block; padding: 0.7rem 1rem; color: var(--navy); text-decoration: none; border-bottom: 1px solid var(--cream-dark);
+  }
+  .search-ac a:hover { background: var(--cream); }
+  
+  .split-screen {
+    display: flex;
+    gap: 2rem;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  .entity-col {
+    flex: 1;
+  }
+  
+  .card {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 2rem;
+    margin-bottom: 2rem;
+    box-shadow: var(--shadow);
+  }
+  .entity-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 2.5rem;
+    color: var(--navy);
+    margin: 0 0 1rem 0;
+    line-height: 1.1;
+  }
+  .nav-tag { background: var(--navy); color: white; }
+  .gold-tag { background: var(--gold); color: white; }
+  
+  .comparative-chart {
+    max-width: 1200px;
+    margin: 0 auto 4rem;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 2rem;
+    box-shadow: var(--shadow);
+  }
+  
+  .vs-badge {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: var(--gold);
+    color: white;
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: bold; font-family: 'Cormorant Garamond', serif; font-size: 1.2rem;
+    border: 3px solid var(--cream);
+    z-index: 10;
+  }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="compare-hero fade-up">
+  <h1>Comparateur</h1>
+  <p style="color:var(--text-soft)">Mettez en perspective l'évolution de deux noms ou prénoms</p>
+</div>
+
+<div class="compare-selectors fade-up-2" style="position:relative;">
+  <div class="vs-badge">VS</div>
+  
+  <!-- Entité 1 -->
+  <div class="selector-box">
+    <h3>Entité 1</h3>
+    <input type="text" id="search-1" placeholder="Rechercher un premier nom/prénom..." 
+           value="{{ data1.nom_original if data1 else '' }}"
+           style="width: 100%; padding: 0.8rem; border: 1px solid var(--border); border-radius: 4px; font-family: inherit; font-size: 1rem;">
+    <ul class="search-ac" id="ac-1" style="display:none;"></ul>
+  </div>
+  
+  <!-- Entité 2 -->
+  <div class="selector-box">
+    <h3>Entité 2</h3>
+    <input type="text" id="search-2" placeholder="Rechercher un deuxième nom/prénom..." 
+           value="{{ data2.nom_original if data2 else '' }}"
+           style="width: 100%; padding: 0.8rem; border: 1px solid var(--border); border-radius: 4px; font-family: inherit; font-size: 1rem;">
+    <ul class="search-ac" id="ac-2" style="display:none;"></ul>
+  </div>
+</div>
+
+<div style="text-align:center; margin-bottom: 3rem;" class="fade-up-2">
+  <button id="btn-compare" class="pulse-button" style="padding: 0.8rem 2rem; font-size: 1rem; cursor: pointer;">Lancer la comparaison</button>
+</div>
+
+{% if data1 or data2 %}
+  <div class="comparative-chart fade-up-3">
+    <h3 style="font-family:'Cormorant Garamond', serif; font-size:1.5rem; color:var(--navy); margin-bottom:1.5rem; text-align:center;">Évolution comparée des naissances</h3>
+    <canvas id="compareChart" height="100"></canvas>
+  </div>
+
+  <div class="split-screen fade-up-4">
+    <!-- Colonne 1 -->
+    <div class="entity-col">
+      {% if data1 %}
+      <div class="card" style="border-top: 4px solid {{ 'var(--navy)' if t1 == 'nom' else 'var(--gold)' }};">
+        <span style="display:inline-block; padding:0.2rem 0.5rem; background:{{ 'var(--navy)' if t1 == 'nom' else 'var(--gold)' }}; color:white; border-radius:4px; font-size:0.65rem; text-transform:uppercase; font-weight:bold; letter-spacing:0.05em; margin-bottom:1rem;">
+          {{ 'Nom de famille' if t1 == 'nom' else 'Prénom' }}
+        </span>
+        <h2 class="entity-title">{{ data1.nom_original }}</h2>
+        
+        <div style="margin-bottom:1.5rem;">
+          {% if data1.langue %}<span class="tag">{{ data1.langue }}</span>{% endif %}
+          {% if data1.geo %}<span class="tag navy">{{ data1.geo }}</span>{% endif %}
+        </div>
+        
+        <p style="font-size:0.95rem; color:var(--text-soft); line-height:1.6;">
+          {{ data1.texte_resume or data1.origine_brute }}
+        </p>
+        <a href="/{{ t1 }}/{{ data1.nom if t1 == 'nom' else data1.prenom }}" style="display:inline-block; margin-top:1.5rem; font-size:0.85rem; color:var(--navy); font-weight:600; text-decoration:underline;">Voir la fiche complète &rarr;</a>
+      </div>
+      {% else %}
+      <div class="card" style="display:flex; align-items:center; justify-content:center; height: 100%; color:var(--text-soft); font-style:italic;">
+        Aucune entité sélectionnée
+      </div>
+      {% endif %}
+    </div>
+    
+    <!-- Colonne 2 -->
+    <div class="entity-col">
+      {% if data2 %}
+      <div class="card" style="border-top: 4px solid {{ 'var(--navy)' if t2 == 'nom' else 'var(--gold)' }};">
+        <span style="display:inline-block; padding:0.2rem 0.5rem; background:{{ 'var(--navy)' if t2 == 'nom' else 'var(--gold)' }}; color:white; border-radius:4px; font-size:0.65rem; text-transform:uppercase; font-weight:bold; letter-spacing:0.05em; margin-bottom:1rem;">
+          {{ 'Nom de famille' if t2 == 'nom' else 'Prénom' }}
+        </span>
+        <h2 class="entity-title">{{ data2.nom_original }}</h2>
+        
+        <div style="margin-bottom:1.5rem;">
+          {% if data2.langue %}<span class="tag">{{ data2.langue }}</span>{% endif %}
+          {% if data2.geo %}<span class="tag navy">{{ data2.geo }}</span>{% endif %}
+        </div>
+        
+        <p style="font-size:0.95rem; color:var(--text-soft); line-height:1.6;">
+          {{ data2.texte_resume or data2.origine_brute }}
+        </p>
+        <a href="/{{ t2 }}/{{ data2.nom if t2 == 'nom' else data2.prenom }}" style="display:inline-block; margin-top:1.5rem; font-size:0.85rem; color:var(--navy); font-weight:600; text-decoration:underline;">Voir la fiche complète &rarr;</a>
+      </div>
+      {% else %}
+      <div class="card" style="display:flex; align-items:center; justify-content:center; height: 100%; color:var(--text-soft); font-style:italic;">
+        Aucune entité sélectionnée
+      </div>
+      {% endif %}
+    </div>
+  </div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  let sel1 = { id: '{{ request.args.get("id1", "") }}', type: '{{ t1 }}' };
+  let sel2 = { id: '{{ request.args.get("id2", "") }}', type: '{{ t2 }}' };
+
+  function setupAutocomplete(inputId, listId, storeObj) {
+    const input = document.getElementById(inputId);
+    const list = document.getElementById(listId);
+    let timer;
+    
+    input.addEventListener('input', function() {
+      clearTimeout(timer);
+      const q = this.value.trim();
+      if (q.length < 2) { list.style.display = 'none'; return; }
+      
+      timer = setTimeout(() => {
+        fetch('/api/search?q=' + encodeURIComponent(q) + '&filter=all')
+          .then(r => r.json())
+          .then(data => {
+            if (!data.length) { list.style.display = 'none'; return; }
+            list.innerHTML = data.map(d => {
+                const badgeColor = d.type_entite === 'nom' ? '#1A2B4A' : '#B8973A';
+                const badgeText = d.type_entite === 'nom' ? 'Nom' : 'Prénom';
+                return `<li><a href="#" data-id="${d.nom}" data-type="${d.type_entite}" data-label="${d.nom_original}">
+                 ${d.nom_original} 
+                 <span style="display:inline-block; padding:0.1rem 0.3rem; background:${badgeColor}; color:white; border-radius:4px; font-size:0.5rem; text-transform:uppercase; margin-left:0.4rem;">${badgeText}</span>
+               </a></li>`;
+            }).join('');
+            list.style.display = 'block';
+            
+            list.querySelectorAll('a').forEach(aCtx => {
+                aCtx.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    storeObj.id = this.dataset.id;
+                    storeObj.type = this.dataset.type;
+                    input.value = this.dataset.label;
+                    list.style.display = 'none';
+                });
+            });
+          });
+      }, 150);
+    });
+    
+    document.addEventListener('click', e => {
+        if (!input.contains(e.target) && !list.contains(e.target)) list.style.display = 'none';
+    });
+  }
+  
+  setupAutocomplete('search-1', 'ac-1', sel1);
+  setupAutocomplete('search-2', 'ac-2', sel2);
+  
+  document.getElementById('btn-compare').addEventListener('click', function() {
+      if (sel1.id || sel2.id) {
+          const params = new URLSearchParams();
+          if (sel1.id) { params.set('id1', sel1.id); params.set('type1', sel1.type); }
+          if (sel2.id) { params.set('id2', sel2.id); params.set('type2', sel2.type); }
+          window.location.href = '/compare?' + params.toString();
+      }
+  });
+
+  // Chart setup
+  {% if stats1 or stats2 %}
+  document.addEventListener('DOMContentLoaded', function() {
+      const stats1 = {{ stats1 | tojson | safe }};
+      const stats2 = {{ stats2 | tojson | safe }};
+      
+      const ctx = document.getElementById('compareChart').getContext('2d');
+      const d1 = {
+          label: '{{ data1.nom_original if data1 else "Entité 1" }}',
+          data: stats1,
+          borderColor: '{{ "#1A2B4A" if t1 == "nom" else "#B8973A" }}',
+          backgroundColor: '{{ "rgba(26,43,74,0.1)" if t1 == "nom" else "rgba(184,151,58,0.1)" }}',
+          borderWidth: 2,
+          pointRadius: 4,
+          pointBackgroundColor: 'white',
+          tension: 0.3,
+          showLine: true
+      };
+      
+      const d2 = {
+          label: '{{ data2.nom_original if data2 else "Entité 2" }}',
+          data: stats2,
+          borderColor: '{{ "#1A2B4A" if t2 == "nom" else "#B8973A" }}',
+          backgroundColor: '{{ "rgba(26,43,74,0.1)" if t2 == "nom" else "rgba(184,151,58,0.1)" }}',
+          borderWidth: 2,
+          pointRadius: 4,
+          pointBackgroundColor: 'white',
+          tension: 0.3,
+          showLine: true
+      };
+      
+      const datasets = [];
+      {% if data1 %} datasets.push(d1); {% endif %}
+      {% if data2 %} datasets.push(d2); {% endif %}
+      
+      new Chart(ctx, {
+          type: 'scatter',
+          data: { datasets: datasets },
+          options: {
+              responsive: true,
+              interaction: {
+                  mode: 'index',
+                  intersect: false,
+              },
+              scales: {
+                  x: {
+                      type: 'linear',
+                      title: { display: true, text: 'Année' },
+                      ticks: { callback: function(value) { return value.toString(); }, stepSize: 10 }
+                  },
+                  y: {
+                      beginAtZero: true,
+                      title: { display: true, text: 'Naissances / Fréquence' }
+                  }
+              },
+              plugins: {
+                  tooltip: {
+                      callbacks: {
+                          title: function(ctx) { return "Année: " + ctx[0].parsed.x; }
+                      }
+                  }
+              }
+          }
+      });
+  });
+  {% endif %}
+</script>
+{% endblock %}

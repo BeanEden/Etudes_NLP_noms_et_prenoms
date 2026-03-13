@@ -1,0 +1,681 @@
+{% extends "base.html" %}
+
+{% block title %}{{ fiche.prenom_original }} — Etymia{% endblock %}
+
+{% block head %}
+<!-- Leaflet -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<!-- Vis-Network -->
+<script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+<!-- noUiSlider -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/15.7.1/nouislider.min.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/15.7.1/nouislider.min.js"></script>
+<style>
+  /* ── Layout fiche ──────────────────────────────────────────────── */
+  .fiche-hero {
+    padding: 2.8rem 0 2rem;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 2.4rem;
+  }
+  .fiche-breadcrumb {
+    font-size: 0.78rem;
+    color: var(--text-soft);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 1rem;
+  }
+  .fiche-breadcrumb a {
+    color: var(--gold);
+    text-decoration: none;
+  }
+  .fiche-breadcrumb a:hover { text-decoration: underline; }
+
+  .fiche-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: clamp(2.6rem, 5vw, 4rem);
+    font-weight: 300;
+    color: var(--navy);
+    letter-spacing: -0.01em;
+    line-height: 1.1;
+    margin-bottom: 0.7rem;
+  }
+  .fiche-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.8rem;
+  }
+
+  /* ── Corps : colonne gauche + droite ───────────────────────────── */
+  .fiche-body {
+    display: grid;
+    grid-template-columns: 1fr 400px;
+    gap: 2.4rem;
+    align-items: start;
+  }
+  @media (max-width: 900px) {
+    .fiche-body { grid-template-columns: 1fr; }
+  }
+
+  /* ── Panneau gauche ────────────────────────────────────────────── */
+  .section-label {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 0.72rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 0.5rem;
+  }
+  .section-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.3rem;
+    font-weight: 600;
+    color: var(--navy);
+    margin-bottom: 0.8rem;
+  }
+
+  .origine-block {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 1.8rem 2rem;
+    margin-bottom: 1.8rem;
+    box-shadow: var(--shadow);
+    position: relative;
+    overflow: hidden;
+  }
+  .origine-block::before {
+    content: '\201C';
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 8rem;
+    color: rgba(184,151,58,0.08);
+    position: absolute;
+    top: -1.5rem;
+    left: 0.8rem;
+    line-height: 1;
+    pointer-events: none;
+  }
+  .origine-text {
+    font-size: 0.96rem;
+    line-height: 1.85;
+    color: var(--text);
+    position: relative;
+  }
+  .no-origine {
+    font-style: italic;
+    color: var(--text-soft);
+    font-size: 0.9rem;
+  }
+
+  /* ── Frise chronologique ───────────────────────────────────────── */
+  .chrono-block {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 1.4rem 2rem;
+    margin-bottom: 1.8rem;
+    box-shadow: var(--shadow);
+  }
+  .chrono-track {
+    position: relative;
+    height: 6px;
+    background: var(--cream-dark);
+    border-radius: 3px;
+    margin: 1rem 0 0.5rem;
+  }
+  .chrono-fill {
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    background: linear-gradient(90deg, var(--navy-light), var(--gold));
+    border-radius: 3px;
+    transition: width 1s cubic-bezier(0.25,0.8,0.25,1);
+  }
+  .chrono-marker {
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: var(--gold);
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 2px var(--gold);
+  }
+  .chrono-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.7rem;
+    color: var(--text-soft);
+    letter-spacing: 0.06em;
+    margin-top: 0.3rem;
+  }
+  .chrono-date-label {
+    text-align: center;
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.05rem;
+    color: var(--navy);
+    margin-top: 0.8rem;
+    font-style: italic;
+  }
+  .chrono-unknown {
+    font-style: italic;
+    color: var(--text-soft);
+    font-size: 0.85rem;
+    padding: 0.4rem 0;
+  }
+
+  /* ── Graphique INSEE ───────────────────────────────────────────── */
+  .insee-block {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 1.4rem 2rem;
+    margin-bottom: 1.8rem;
+    box-shadow: var(--shadow);
+  }
+  .insee-chart-container {
+    position: relative;
+    height: 250px;
+    width: 100%;
+    margin-top: 1rem;
+  }
+
+  /* ── Noms liés ─────────────────────────────────────────────────── */
+  .noms-lies-block {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 1.4rem 2rem;
+    box-shadow: var(--shadow);
+  }
+  .noms-lies-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.7rem;
+  }
+  .nom-lie-chip {
+    display: inline-block;
+    padding: 0.3rem 0.9rem;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    font-size: 0.83rem;
+    color: var(--navy-mid);
+    text-decoration: none;
+    background: var(--cream);
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+    font-family: 'Libre Baskerville', serif;
+  }
+  .nom-lie-chip:hover {
+    background: var(--navy);
+    color: var(--cream);
+    border-color: var(--navy);
+  }
+  .nom-lie-chip.direct {
+    border-color: var(--gold);
+    color: var(--gold);
+    background: rgba(184,151,58,0.06);
+  }
+  .nom-lie-chip.direct:hover {
+    background: var(--gold);
+    color: #fff;
+  }
+
+  /* ── Panneau droit ─────────────────────────────────────────────── */
+  .right-panel {
+    position: sticky;
+    top: 88px;
+  }
+
+  .carte-block {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+    margin-bottom: 1.4rem;
+  }
+  .carte-header {
+    padding: 0.9rem 1.2rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .carte-header-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 0.78rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--text-soft);
+  }
+  #map {
+    width: 100%;
+    height: 300px;
+    background: var(--cream-dark);
+  }
+  .carte-unavailable {
+    height: 140px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-style: italic;
+    font-size: 0.85rem;
+    color: var(--text-soft);
+    background: var(--cream);
+  }
+
+  /* légende carte */
+  .carte-legend {
+    padding: 0.65rem 1.2rem;
+    border-top: 1px solid var(--border);
+    display: flex;
+    gap: 1.2rem;
+    font-size: 0.73rem;
+    color: var(--text-soft);
+  }
+  .legend-item { display: flex; align-items: center; gap: 0.35rem; }
+  .legend-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .legend-dot.main { background: var(--navy); }
+  .legend-dot.linked { background: var(--gold); }
+
+  /* ── Groupe stats mini ─────────────────────────────────────────── */
+  .groupe-stats {
+    background: var(--navy);
+    border-radius: 6px;
+    padding: 1.2rem 1.4rem;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.8rem;
+    box-shadow: var(--shadow);
+  }
+  .stat-item { text-align: center; }
+  .stat-value {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 2rem;
+    font-weight: 600;
+    color: var(--gold-light);
+    line-height: 1;
+  }
+  .stat-label {
+    font-size: 0.7rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: rgba(247,243,236,0.55);
+    margin-top: 0.2rem;
+  }
+  
+  /* ── Graphe Réseau ────────────────────────────────────────────── */
+  .network-block {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 1.4rem 2rem;
+    margin-bottom: 1.8rem;
+    box-shadow: var(--shadow);
+  }
+  #network {
+    width: 100%;
+    height: 400px;
+    background: var(--cream-dark);
+    margin-top: 1rem;
+    border-radius: 4px;
+  }
+  
+  /* ── Top Régions ──────────────────────────────────────────────── */
+  .regions-block {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 1.4rem 2rem;
+    margin-bottom: 1.8rem;
+    box-shadow: var(--shadow);
+  }
+  .regions-chart-container {
+    position: relative;
+    height: 250px;
+    width: 100%;
+    margin-top: 1rem;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Hero fiche -->
+<div class="fiche-hero fade-up">
+  <p class="fiche-breadcrumb">
+    <a href="/">Accueil</a> &nbsp;/&nbsp; <span style="display:inline-block; padding: 0.2rem 0.5rem; background: var(--gold); color: white; border-radius: 4px; font-weight: 600; font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; font-size: 0.65rem; letter-spacing: 0.05em; text-transform: uppercase; vertical-align: middle; margin-top: -2px;">Prénom</span>
+  </p>
+  <h1 class="fiche-title">{{ fiche.prenom_original }}</h1>
+  <div class="fiche-tags" style="display:flex; align-items:center;">
+    {% if fiche.langue %}<span class="tag">{{ fiche.langue }}</span>{% endif %}
+    {% if fiche.geo %}<span class="tag navy">{{ fiche.geo }}</span>{% endif %}
+    <a href="/compare?id1={{ fiche.prenom }}&type1=prenom" style="margin-left:auto; display:inline-block; padding:0.3rem 0.8rem; background:var(--navy); color:white; border-radius:4px; font-weight:600; font-size:0.75rem; text-transform:uppercase; text-decoration:none; letter-spacing:0.05em; transition: opacity 0.2s;" onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">
+      <svg style="vertical-align:text-top; margin-right:4px;" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg> Comparer
+    </a>
+  </div>
+</div>
+
+<div class="fiche-body">
+  <!-- ── Colonne gauche ─────────────────────────────────────────── -->
+  <div class="left-col">
+
+    <!-- Origine -->
+    <div class="origine-block fade-up-2">
+      <p class="section-label">Origine &amp; Signification</p>
+      <div class="divider"></div>
+      {% if fiche.texte_resume %}
+        <p class="origine-text">{{ fiche.texte_resume }}</p>
+      {% else %}
+        <p class="no-origine">Aucune information originelle disponible pour ce prénom.</p>
+      {% endif %}
+    </div>
+
+
+    <!-- Noms liés -->
+    <div class="noms-lies-block fade-up-4">
+      <p class="section-label">Variantes &amp; prénoms du groupe</p>
+      <div class="divider"></div>
+
+      {% if fiche.prenoms_groupe %}
+        <div class="noms-lies-grid">
+          {% for n in fiche.prenoms_groupe %}
+            {% if n != fiche.prenom %}
+              <a href="/prenom/{{ n }}"
+                 class="nom-lie-chip direct">
+                {{ n | replace('_', ' ') | title }}
+              </a>
+            {% endif %}
+          {% endfor %}
+          {% if fiche.prenoms_groupe|length <= 1 %}
+            <p style="font-style:italic;font-size:0.85rem;color:var(--text-soft)">
+              Aucun prénom connexe identifié.
+            </p>
+          {% endif %}
+        </div>
+      {% else %}
+        <p style="font-style:italic;color:var(--text-soft);font-size:0.85rem;">Aucun prénom connexe identifié.</p>
+      {% endif %}
+    </div>
+
+    <!-- Graphique INSEE -->
+    {% if tendances.national %}
+    <div class="insee-block fade-up-5">
+      <p class="section-label">Évolution de la fréquencen (1900-2024)</p>
+      <div class="divider"></div>
+      <div class="insee-chart-container">
+        <canvas id="inseeChart"></canvas>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Graphe de réseau -->
+    {% if graphe.nodes | length > 1 %}
+    <div class="network-block fade-up-6">
+      <p class="section-label">Graphe des variantes liées</p>
+      <div class="divider"></div>
+      <div id="network"></div>
+    </div>
+    {% endif %}
+
+  </div><!-- /left-col -->
+
+  <!-- ── Colonne droite ─────────────────────────────────────────── -->
+  <div class="right-panel">
+
+    <!-- Carte -->
+    <div class="carte-block fade-up-2">
+      <div class="carte-header">
+        <span class="carte-header-title">Carte Interactive des Naissances</span>
+      </div>
+
+      <div id="map" style="height: 380px;"></div>
+      <div class="carte-legend" style="flex-direction: column;">
+        <p style="margin: 0; font-size: 0.8rem; font-weight: 600; color: var(--navy);">Popularité par département</p>
+        <p style="margin: 0; font-style: italic; font-size: 0.75rem;">Plus la couleur est foncée, plus le prénom y a été donné durant la période.</p>
+        
+        <div style="margin-top: 1rem;">
+          <label style="font-size: 0.82rem; color: var(--text-soft);">Période de temps :</label>
+          <div style="display: flex; gap: 1rem; align-items: center; margin-top: 0.5rem;">
+            <input type="number" id="inputMin" value="1900" min="1900" max="2024" style="width: 70px; padding: 0.3rem; border: 1px solid var(--border); border-radius: 4px; font-family: inherit; font-size: 0.9rem; color: var(--navy); background: var(--cream);">
+            <div id="yearSlider" style="flex: 1; margin: 0 0.5rem;"></div>
+            <input type="number" id="inputMax" value="2024" min="1900" max="2024" style="width: 70px; padding: 0.3rem; border: 1px solid var(--border); border-radius: 4px; font-family: inherit; font-size: 0.9rem; color: var(--navy); background: var(--cream);">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stats groupe -->
+    <div class="groupe-stats fade-up-3">
+      <div class="stat-item">
+        <div class="stat-value">{{ fiche.prenoms_groupe | length }}</div>
+        <div class="stat-label">Prénoms dans<br>le groupe</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-value">{{ tendances.pic_annee if tendances.pic_annee else '...' }}</div>
+        <div class="stat-label">Année<br>pic</div>
+      </div>
+      <div class="stat-item" style="grid-column: span 2; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 0.8rem;">
+        <div class="stat-label" style="color:rgba(247,243,236,0.4); text-align:left; margin-bottom:0.3rem;">Groupe n°</div>
+        <div style="font-family:'Cormorant Garamond',serif; font-size:1rem; color:var(--gold-light); letter-spacing:0.06em;">
+          {{ fiche.id_groupe_total }}
+        </div>
+      </div>
+      
+      {% if tendances.total %}
+      <div class="stat-item" style="grid-column: span 2; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 0.8rem;">
+        <div class="stat-value">{{ tendances.total }}</div>
+        <div class="stat-label">Naissances totales (1900-2024)</div>
+      </div>
+      {% endif %}
+    </div>
+
+  </div><!-- /right-panel -->
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% if tendances.par_dept %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+let map;
+
+document.addEventListener('DOMContentLoaded', function() {
+  const tendances = {{ tendances | tojson | safe }};
+  const NAV = '#1A2B4A';
+  const GOLD = '#B8973A';
+
+  map = L.map('map', { zoomControl: true, scrollWheelZoom: false }).setView([46.6, 2.4], 5);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { 
+    attribution: '&copy; CartoDB', maxZoom: 18 
+  }).addTo(map);
+
+  window.tendancesParDept = tendances.par_dept || {};
+  let geojsonLayer;
+  let currentGeojsonData;
+  
+  // Fonction de couleur pour choroplèthe
+  function getColor(d, max) {
+    if (d === 0) return '#f4f6fa';
+    let ratio = d / max;
+    return ratio > 0.8 ? '#1A2B4A' :
+           ratio > 0.5 ? '#2c4b82' :
+           ratio > 0.2 ? '#6c8bc5' :
+           ratio > 0.05 ? '#a3b7de' :
+                         '#d4deef';
+  }
+  
+  window.updateMapYears = function(yStart, yEnd) {
+    if (!currentGeojsonData) return;
+    
+    let maxPourPeriode = 1;
+    let countsByDept = {};
+    for (let dept in window.tendancesParDept) {
+        let sum = 0;
+        window.tendancesParDept[dept].forEach(d => {
+            if (d.annee >= yStart && d.annee <= yEnd) sum += d.count;
+        });
+        countsByDept[dept] = sum;
+        if (sum > maxPourPeriode) maxPourPeriode = sum;
+    }
+
+    if (geojsonLayer) map.removeLayer(geojsonLayer);
+
+    geojsonLayer = L.geoJson(currentGeojsonData, {
+        style: function (feature) {
+            let deptCode = feature.properties.code;
+            let count = countsByDept[deptCode] || 0;
+            return {
+                fillColor: getColor(count, maxPourPeriode),
+                weight: 1,
+                opacity: 1,
+                color: 'white',
+                dashArray: '3',
+                fillOpacity: count > 0 ? 0.8 : 0.4
+            };
+        },
+        onEachFeature: function(feature, layer) {
+            let deptCode = feature.properties.code;
+            let count = countsByDept[deptCode] || 0;
+            if (count > 0) {
+                layer.bindTooltip(`<strong>${feature.properties.nom} (${deptCode})</strong><br/>${count} naissances`);
+                layer.on({
+                    mouseover: function(e) {
+                       var layer = e.target;
+                       layer.setStyle({ weight: 2, color: GOLD, dashArray: '' });
+                       layer.bringToFront();
+                    },
+                    mouseout: function(e) { geojsonLayer.resetStyle(e.target); }
+                });
+            }
+        }
+    }).addTo(map);
+  };
+  
+  // Fetch GeoJSON
+  fetch('/static/data/departements.geojson')
+    .then(response => response.json())
+    .then(data => {
+        currentGeojsonData = data;
+        window.updateMapYears(1900, 2024);
+    });
+  
+  const slider = document.getElementById('yearSlider');
+  const inputMin = document.getElementById('inputMin');
+  const inputMax = document.getElementById('inputMax');
+  
+  noUiSlider.create(slider, {
+      start: [1900, 2024],
+      connect: true,
+      range: { 'min': 1900, 'max': 2024 },
+      step: 1,
+      format: { to: v => Math.round(v), from: Number }
+  });
+
+  slider.noUiSlider.on('update', function (values, handle) {
+      if (handle === 0) inputMin.value = values[0];
+      else inputMax.value = values[1];
+  });
+  
+  slider.noUiSlider.on('set', function (values) {
+      window.updateMapYears(values[0], values[1]);
+  });
+  
+  inputMin.addEventListener('change', function(){
+      slider.noUiSlider.set([this.value, null]);
+  });
+  inputMax.addEventListener('change', function(){
+      slider.noUiSlider.set([null, this.value]);
+  });
+});
+</script>
+{% endif %}
+
+{% if tendances.national %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const nationalData = {{ tendances.national | tojson | safe }};
+  const ctx = document.getElementById('inseeChart').getContext('2d');
+  
+  const labels = nationalData.map(d => d.annee);
+  const chartData = nationalData.map(d => d.count);
+
+  new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: 'Naissances par année',
+        data: chartData,
+        borderColor: '#1A2B4A',
+        backgroundColor: 'rgba(26, 43, 74, 0.1)',
+        borderWidth: 2,
+        fill: true,
+        tension: 0.2,
+        pointRadius: 0,
+        pointHoverRadius: 5
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false }
+      },
+      scales: {
+        y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.05)' } },
+        x: { grid: { display: false }, ticks: {maxTicksLimit: 12} }
+      }
+    }
+  });
+});
+</script>
+{% endif %}
+
+{% if graphe.nodes | length > 1 %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const graphData = {{ graphe | tojson | safe }};
+  const container = document.getElementById('network');
+  
+  const visNodes = new vis.DataSet(graphData.nodes);
+  const visEdges = new vis.DataSet(graphData.edges);
+  
+  const networkData = { nodes: visNodes, edges: visEdges };
+  
+  const options = {
+    nodes: {
+      shape: 'dot',
+      font: { name: 'Cormorant Garamond', size: 14, color: '#1A2B4A' }
+    },
+    edges: {
+      color: { color: '#e0dfdb', highlight: '#B8973A' },
+      width: 1,
+      smooth: { type: 'continuous' }
+    },
+    groups: {
+      principal: {
+        color: { background: '#1A2B4A', border: '#1A2B4A' },
+        font: { color: '#fff', size: 16 }
+      },
+      lie: {
+        color: { background: '#B8973A', border: '#B8973A' }
+      }
+    },
+    physics: {
+      barnesHut: { gravitationalConstant: -3000, centralGravity: 0.5 },
+      stabilization: { iterations: 150 }
+    },
+    interaction: { hover: true }
+  };
+  
+  new vis.Network(container, networkData, options);
+});
+</script>
+{% endif %}
+{% endblock %}

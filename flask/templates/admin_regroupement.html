@@ -1,0 +1,608 @@
+{% extends "base.html" %}
+
+{% block title %}Administration - Entraînement Modèle — Etymia{% endblock %}
+
+{% block head %}
+<style>
+  .admin-hero {
+    padding: 3rem 0;
+    text-align: center;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 2.5rem;
+  }
+
+  .admin-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 2.8rem;
+    font-weight: 300;
+    color: var(--navy);
+  }
+
+  .admin-sub {
+    font-size: 0.95rem;
+    color: var(--text-soft);
+    font-style: italic;
+    margin-top: 0.5rem;
+  }
+
+  .grid-2col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 3rem;
+  }
+
+  @media(max-width: 900px) {
+    .grid-2col {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .card {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 2rem;
+    box-shadow: var(--shadow);
+  }
+
+  .card-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.8rem;
+    color: var(--navy);
+    margin-bottom: 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .form-group {
+    margin-bottom: 1.2rem;
+  }
+
+  .form-group label {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--navy-mid);
+    margin-bottom: 0.4rem;
+  }
+
+  .form-group input[type="number"] {
+    width: 100%;
+    padding: 0.6rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-family: 'Libre Baskerville', serif;
+    font-size: 0.95rem;
+    transition: border-color 0.2s;
+  }
+
+  .form-group input[type="number"]:focus {
+    outline: none;
+    border-color: var(--gold);
+    box-shadow: 0 0 0 2px rgba(184, 151, 58, 0.1);
+  }
+
+  .help-text {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--text-soft);
+    margin-top: 0.3rem;
+    font-style: italic;
+  }
+
+  .btn-submit {
+    display: block;
+    width: 100%;
+    padding: 1rem;
+    background: var(--navy);
+    color: var(--cream);
+    border: none;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background 0.2s;
+    margin-top: 2rem;
+    font-family: 'Libre Baskerville', serif;
+  }
+
+  .btn-submit:hover {
+    background: var(--navy-light);
+  }
+
+  .btn-submit:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+  }
+
+  .output-box {
+    margin-top: 2rem;
+    background: var(--navy);
+    color: #e0dfdb;
+    padding: 1rem;
+    border-radius: 6px;
+    font-family: monospace;
+    font-size: 0.85rem;
+    max-height: 300px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    display: none;
+  }
+
+  .loader {
+    display: none;
+    margin: 1.5rem auto;
+    border: 3px solid rgba(184, 151, 58, 0.2);
+    border-top: 3px solid var(--gold);
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    0% {
+      transform: rotate(0deg);
+    }
+
+    100% {
+      transform: rotate(360deg);
+    }
+  }
+
+  .stats-badges {
+    display: none;
+    gap: 1rem;
+    margin-top: 1.5rem;
+  }
+
+  .badge {
+    flex: 1;
+    background: rgba(184, 151, 58, 0.1);
+    border: 1px solid var(--gold);
+    border-radius: 4px;
+    padding: 1rem;
+    text-align: center;
+  }
+
+  .badge-val {
+    font-size: 1.8rem;
+    font-family: 'Cormorant Garamond', serif;
+    color: var(--navy);
+    font-weight: 600;
+  }
+
+  .badge-lbl {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-soft);
+  }
+
+  /* Tooltips & Eval */
+  .tooltip-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    background: var(--navy-light);
+    color: white;
+    font-size: 10px;
+    margin-left: 6px;
+    cursor: help;
+    vertical-align: middle;
+    position: relative;
+  }
+
+  .tooltip-content {
+    visibility: hidden;
+    opacity: 0;
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--navy);
+    color: var(--cream);
+    padding: 0.9rem;
+    border-radius: 6px;
+    width: 260px;
+    font-size: 0.78rem;
+    font-weight: normal;
+    line-height: 1.4;
+    transition: 0.2s;
+    z-index: 10;
+    box-shadow: var(--shadow-deep);
+    pointer-events: none;
+    text-transform: none;
+    letter-spacing: normal;
+  }
+
+  .tooltip-content::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    margin-left: -5px;
+    border-width: 5px;
+    border-style: solid;
+    border-color: var(--navy) transparent transparent transparent;
+  }
+
+  .tooltip-icon:hover .tooltip-content {
+    visibility: visible;
+    opacity: 1;
+  }
+
+  .tooltip-content b {
+    color: var(--gold-light);
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  .btn-eval {
+    background: transparent;
+    color: var(--navy);
+    border: 1px solid var(--navy-light);
+    padding: 0.7rem 1rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    margin-top: 1rem;
+    transition: 0.2s;
+    width: 100%;
+    font-family: 'Libre Baskerville', serif;
+  }
+
+  .btn-eval:hover {
+    background: rgba(26, 43, 74, 0.05);
+  }
+
+  .eval-box {
+    margin-top: 1rem;
+    padding: 1rem;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    display: none;
+    line-height: 1.5;
+  }
+
+  .eval-box.warning {
+    background: rgba(255, 152, 0, 0.1);
+    border-left: 3px solid #ff9800;
+  }
+
+  .eval-box.ok {
+    background: rgba(76, 175, 80, 0.1);
+    border-left: 3px solid #4CAF50;
+  }
+
+  .eval-box.danger {
+    background: rgba(244, 67, 54, 0.1);
+    border-left: 3px solid #F44336;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="admin-hero fade-up">
+  <h1 class="admin-title">Administration des Modèles</h1>
+  <p class="admin-sub">Ajustez les hyperparamètres et relancez le partitionnement NLP</p>
+</div>
+
+<div class="grid-2col fade-up-2">
+
+  <!-- FORM NOMS -->
+  <div class="card">
+    <h2 class="card-title">Regroupement Noms
+      <span class="tag navy" style="font-size: 0.6rem;">TF-IDF + Levenshtein</span>
+    </h2>
+    <form id="form-noms">
+      <input type="hidden" name="cible" value="noms">
+
+      <div class="form-group">
+        <label>
+          Seuil Levenshtein (Pre-sélection)
+          <span class="tooltip-icon">?
+            <span class="tooltip-content">
+              <b>Sensibilité Orthographique</b>
+              Hausse (>0.85) : Ne lie que les noms à orthographe presque identique (ex: Martin / Martinn). Modèle très
+              exclusif.<br><br>
+              Baisse (<0.7) : Laisse passer beaucoup de candidats pour la phase sémantique, augmente les calculs et la
+                RAM. </span>
+            </span>
+        </label>
+        <input type="number" name="seuil_lev_preselection" step="0.01" min="0.5" max="1.0" value="0.75" required>
+      </div>
+
+      <div class="form-group">
+        <label>
+          Score Pondéré Final (Seuil)
+          <span class="tooltip-icon">?
+            <span class="tooltip-content">
+              <b>Fusion Sémantique/Géo</b>
+              Calcule 0.5*TF-IDF + 0.3*Langue + 0.2*Géo.<br>
+              Hausse (>0.6) : Diminue drastiquement les faux positifs (Précision).<br>
+              Baisse (<0.5) : Permet de capter plus de racines communes mais augmente fortement le risque d'homonymie
+                accidentelle (Rappel). </span>
+            </span>
+        </label>
+        <input type="number" name="seuil_score_final" step="0.01" min="0.5" max="1.0" value="0.55" required>
+      </div>
+
+      <div class="form-group" style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
+        <div>
+          <label>
+            Long. préfixe
+            <span class="tooltip-icon">?
+              <span class="tooltip-content">
+                <b>Blocage du clustering</b><br>
+                Force 2 noms à avoir la même première/deuxième lettre. <br>
+                <i>1</i> = Très gourmand en RAM.<br>
+                <i>3</i> = Ultra léger, mais loupe les changements de racines (ex: Mac/Mc).
+              </span>
+            </span>
+          </label>
+          <input type="number" name="prefixe_len" step="1" min="1" max="5" value="2" required>
+        </div>
+        <div>
+          <label>
+            Facteur L_max
+            <span class="tooltip-icon">?
+              <span class="tooltip-content">
+                <b>Pondération des textes courts</b><br>
+                Taille de chaîne pour saturer l'algorithme TF-IDF.
+              </span>
+            </span>
+          </label>
+          <input type="number" name="longueur_max" step="1" min="5" max="30" value="15" required>
+        </div>
+      </div>
+
+      <button type="button" class="btn-eval" onclick="evaluerModele('noms')">Évaluer le modèle</button>
+      <div id="eval-noms" class="eval-box"></div>
+
+      <button type="submit" class="btn-submit" id="btn-noms">Lancer l'entraînement</button>
+      <div class="loader" id="loader-noms"></div>
+
+      <div class="stats-badges" id="badges-noms">
+        <div class="badge">
+          <div class="badge-val" id="val-clusters-noms">-</div>
+          <div class="badge-lbl">Groupes générés</div>
+        </div>
+        <div class="badge">
+          <div class="badge-val" id="val-singletons-noms">-</div>
+          <div class="badge-lbl">Singletons</div>
+        </div>
+      </div>
+
+      <div class="output-box" id="out-noms"></div>
+    </form>
+  </div>
+
+  <!-- FORM PRENOMS -->
+  <div class="card">
+    <h2 class="card-title">Regroupement Prénoms
+      <span class="tag" style="font-size: 0.6rem;">CamemBERT + Levenshtein</span>
+    </h2>
+    <form id="form-prenoms">
+      <input type="hidden" name="cible" value="prenoms">
+
+      <div class="form-group">
+        <label>
+          Seuil Levenshtein (Orthographe)
+          <span class="tooltip-icon">?
+            <span class="tooltip-content">
+              <b>Filtrage de base</b>
+              Les prénoms sont souvent des variantes courtes. <br>
+              Hausse (>0.85) : Moins de calculs NLP, très rapide.<br>
+              Baisse (<0.7) : Beaucoup de faux positifs. </span>
+            </span>
+        </label>
+        <input type="number" name="seuil_lev" step="0.01" min="0.5" max="1.0" value="0.82" required>
+      </div>
+
+      <div class="form-group">
+        <label>
+          Seuil CamemBERT (Sémantique)
+          <span class="tooltip-icon">?
+            <span class="tooltip-content">
+              <b>Proximité Cosinus LLM</b>
+              Hausse (>0.85) : Les phrases explicatives doivent être presque identiques (Précision).<br>
+              Baisse (<0.7) : Tolère de fortes disparités syntaxiques mais peut fusionner des origines distinctes
+                (Rappel). </span>
+            </span>
+        </label>
+        <input type="number" name="seuil_sem" step="0.01" min="0.5" max="1.0" value="0.78" required>
+      </div>
+
+      <div class="form-group">
+        <label>
+          Score Final (Fusion)
+          <span class="tooltip-icon">?
+            <span class="tooltip-content">
+              Mix équilibré calculé en aval. Diminuer pour lier les petits clusters isolés.
+            </span>
+          </span>
+        </label>
+        <input type="number" name="seuil_score_final" step="0.01" min="0.5" max="1.0" value="0.60" required>
+      </div>
+
+      <div class="form-group" style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
+        <div>
+          <label>Long. préfixe</label>
+          <input type="number" name="prefixe_len" step="1" min="1" max="5" value="2" required>
+        </div>
+        <div>
+          <label>Facteur L_max</label>
+          <input type="number" name="longueur_max" step="1" min="5" max="30" value="12" required>
+        </div>
+      </div>
+
+      <button type="button" class="btn-eval" onclick="evaluerModele('prenoms')">Évaluer le modèle</button>
+      <div id="eval-prenoms" class="eval-box"></div>
+
+      <button type="submit" class="btn-submit" id="btn-prenoms">Lancer l'entraînement</button>
+      <div class="loader" id="loader-prenoms"></div>
+
+      <div class="stats-badges" id="badges-prenoms">
+        <div class="badge">
+          <div class="badge-val" id="val-clusters-prenoms">-</div>
+          <div class="badge-lbl">Groupes générés</div>
+        </div>
+        <div class="badge">
+          <div class="badge-val" id="val-singletons-prenoms">-</div>
+          <div class="badge-lbl">Singletons</div>
+        </div>
+      </div>
+
+      <div class="output-box" id="out-prenoms"></div>
+    </form>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function attachFormHandler(formId, btnId, loaderId, outId, badgesId, clusterId, singleId) {
+    document.getElementById(formId).addEventListener('submit', function (e) {
+      e.preventDefault();
+
+      const btn = document.getElementById(btnId);
+      const loader = document.getElementById(loaderId);
+      const out = document.getElementById(outId);
+      const badges = document.getElementById(badgesId);
+
+      btn.disabled = true;
+      btn.style.display = 'none';
+      loader.style.display = 'block';
+      out.style.display = 'none';
+      badges.style.display = 'none';
+
+      const formData = new FormData(this);
+      const data = Object.fromEntries(formData.entries());
+
+      // Convert number strings to floats
+      for (let key in data) {
+        if (key !== 'cible' && data[key] !== '') {
+          data[key] = parseFloat(data[key]);
+        }
+      }
+
+      fetch('/api/admin/run_regroupement', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      })
+        .then(res => res.json())
+        .then(resp => {
+          btn.disabled = false;
+          btn.style.display = 'block';
+          loader.style.display = 'none';
+          out.style.display = 'block';
+
+          if (resp.status === 'success') {
+            out.innerText = resp.stats.output;
+            out.style.borderLeft = "4px solid var(--gold)";
+
+            if (resp.stats.clusters > 0) {
+              badges.style.display = 'flex';
+              document.getElementById(clusterId).innerText = resp.stats.clusters;
+              document.getElementById(singleId).innerText = resp.stats.singletons;
+            }
+          } else {
+            out.innerText = "Erreur: " + resp.error + "\n\n" + (resp.details || "");
+            out.style.borderLeft = "4px solid red";
+          }
+        })
+        .catch(err => {
+          btn.disabled = false;
+          btn.style.display = 'block';
+          loader.style.display = 'none';
+          out.style.display = 'block';
+          out.innerText = "Erreur réseau: " + err;
+          out.style.borderLeft = "4px solid red";
+        });
+    });
+  }
+
+  attachFormHandler('form-noms', 'btn-noms', 'loader-noms', 'out-noms', 'badges-noms', 'val-clusters-noms', 'val-singletons-noms');
+  attachFormHandler('form-prenoms', 'btn-prenoms', 'loader-prenoms', 'out-prenoms', 'badges-prenoms', 'val-clusters-prenoms', 'val-singletons-prenoms');
+
+  function evaluerModele(cible) {
+    const form = document.getElementById('form-' + cible);
+    const box = document.getElementById('eval-' + cible);
+    box.style.display = 'block';
+
+    // NOMS (TF-IDF)
+    if (cible === 'noms') {
+      const lev = parseFloat(form.seuil_lev_preselection.value);
+      const prefix = parseInt(form.prefixe_len.value);
+      const sc = parseFloat(form.seuil_score_final.value);
+
+      let msg = "<strong>Évaluation (TF-IDF) :</strong><br><br>";
+      let warnLevel = 'ok';
+
+      // RAM & Perf
+      if (prefix === 1 && lev < 0.7) {
+        msg += "<b>RAM critique & CPU intensif</b>: Préfixe très court + seuil bas générera des dizaines de millions de comparaisons (JaroWinkler). Machine >16GB RAM avec CPU multi-coeur conseillée. Temps de process potentiellement >30 mins.<br>";
+        warnLevel = 'danger';
+      } else if (prefix === 1) {
+        msg += "<b>Ressources élevées</b>: Le préfixe de 1 lettre génère des blocs massifs. Attendez-vous à un long temps de calcul (~10 mins).<br>";
+        warnLevel = 'warning';
+      } else if (prefix >= 3) {
+        msg += "<b>Optimisé</b>: Très rapide (<30s). Faible RAM. <em>Risque:</em> séparation de certaines variantes valides en début de nom.<br>";
+      } else {
+        msg += "<b>Équilibré</b>: Charge RAM correcte (~1-2 GB). Temps calcul estimé : ~1 minute.<br>";
+      }
+
+      // Qualité
+      if (sc < 0.5) {
+        msg += "<b>Faible Précision</b>: Beaucoup d'homonymes lointains seront regroupés arbitrairement.<br>";
+        if (warnLevel === 'ok') warnLevel = 'warning';
+      } else if (sc > 0.75) {
+        msg += "<b>Modèle exclusif (Rappel faible)</b>: Seules les équivalences TF-IDF quasi parfaites sont retenues.<br>";
+      } else {
+        msg += "<b>Haute Fiabilité</b>: Ratio Précision/Rappel optimal pour traiter des sacs de mots-clés.<br>";
+      }
+
+      box.className = 'eval-box ' + warnLevel;
+      box.innerHTML = msg;
+    }
+    // PRENOMS (CamemBERT)
+    else {
+      const lev = parseFloat(form.seuil_lev.value);
+      const sem = parseFloat(form.seuil_sem.value);
+      const prefix = parseInt(form.prefixe_len.value);
+
+      let msg = "<strong>Évaluation (CamemBERT) :</strong><br><br>";
+      let warnLevel = 'ok';
+
+      msg += "<b>IA Générative</b> : CamemBERT occupera par défaut ~1.5 GB en RAM pour le modèle PyTorch.<br><br>";
+
+      if (prefix === 1 && lev < 0.75) {
+        msg += "<b>Saturation RAM (~6-10 GB)</b>: Nombre absurde de textes à inférer. Risque de crash Out-Of-Memory si pas de Swap.<br>";
+        warnLevel = 'danger';
+      } else {
+        msg += "<b>Machine standard (8GB+)</b>: Compatible. Calcul des embeddings environ 30-45s.<br>";
+      }
+
+      if (sem < 0.7) {
+        msg += "<b>Sous-ajustement (Underfitting) sémantique</b>: Les phrases d'origine seront matchées même avec un contexte lointain (taux d'erreur de clustering élévé).<br>";
+        if (warnLevel === 'ok') warnLevel = 'warning';
+      } else if (sem > 0.85) {
+        msg += "<b>Suroptimisation (Overfitting)</b>: Réduction stricte aux synonymes NLP pur (ex: même phrase au mot près).<br>";
+      } else {
+        msg += "<b>Compréhension Langage Naturel (NLP) performante</b>: L'algorithme tolèrera les structures de phrases synonymiques sans casser les groupements forts.<br>";
+      }
+
+      box.className = 'eval-box ' + warnLevel;
+      box.innerHTML = msg;
+    }
+  }
+</script>
+{% endblock %}
