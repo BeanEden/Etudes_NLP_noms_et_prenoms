@@ -365,14 +365,41 @@
   <!-- ── Colonne gauche ─────────────────────────────────────────── -->
   <div class="left-col">
 
-    <!-- Origine -->
+    <!-- Origine & Histoire -->
     <div class="origine-block fade-up-2">
       <p class="section-label">Origine &amp; Signification</p>
       <div class="divider"></div>
-      {% if fiche.texte_resume %}
-        <p class="origine-text">{{ fiche.texte_resume }}</p>
-      {% else %}
-        <p class="no-origine">Aucune information originelle disponible pour ce prénom.</p>
+      
+      {% if fiche.signification %}
+        <div style="margin-bottom: 1.5rem;">
+          <h3 style="font-family:'Cormorant Garamond', serif; font-size:1.2rem; color:var(--navy); margin-bottom:0.5rem; font-weight: bold;">Signification</h3>
+          <p class="origine-text">{{ fiche.signification }}</p>
+        </div>
+      {% endif %}
+
+      {% if fiche.etymologie %}
+        <div style="margin-bottom: 1.5rem;">
+          <h3 style="font-family:'Cormorant Garamond', serif; font-size:1.2rem; color:var(--navy); margin-bottom:0.5rem; font-weight: bold;">Étymologie</h3>
+          <p class="origine-text">{{ fiche.etymologie }}</p>
+        </div>
+      {% endif %}
+
+      {% if fiche.provenance %}
+        <div style="margin-bottom: 1.5rem;">
+          <h3 style="font-family:'Cormorant Garamond', serif; font-size:1.2rem; color:var(--navy); margin-bottom:0.5rem; font-weight: bold;">Provenance</h3>
+          <p class="origine-text">{{ fiche.provenance }}</p>
+        </div>
+      {% endif %}
+
+      {% if fiche.histoire %}
+        <div style="margin-bottom: 1.5rem;">
+          <h3 style="font-family:'Cormorant Garamond', serif; font-size:1.2rem; color:var(--navy); margin-bottom:0.5rem; font-weight: bold;">Histoire</h3>
+          <p class="origine-text">{{ fiche.histoire }}</p>
+        </div>
+      {% endif %}
+
+      {% if not fiche.signification and not fiche.etymologie and not fiche.provenance and not fiche.histoire %}
+        <p class="no-origine">Aucune information détaillée disponible pour ce prénom.</p>
       {% endif %}
     </div>
 
@@ -406,7 +433,7 @@
     <!-- Graphique INSEE -->
     {% if tendances.national %}
     <div class="insee-block fade-up-5">
-      <p class="section-label">Évolution de la fréquencen (1900-2024)</p>
+      <p class="section-label">Évolution de la fréquence (1900-2024)</p>
       <div class="divider"></div>
       <div class="insee-chart-container">
         <canvas id="inseeChart"></canvas>
@@ -477,6 +504,126 @@
 
   </div><!-- /right-panel -->
 </div>
+
+<!-- ── Versions travaillées par CamemBERT ────────────────────────── -->
+{% set has_v = fiche.etymologie_v or fiche.provenance_v or fiche.histoire_v or fiche.signification_v %}
+{% if has_v %}
+<div style="max-width: 1080px; margin: 3rem auto 4rem; padding: 0 1.5rem;">
+  <div style="background:#fff; border:1px solid var(--border); border-radius:12px; padding:2rem; box-shadow: var(--shadow);">
+    
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1.5rem; border-bottom:1px solid var(--border); padding-bottom:1rem;">
+      <div>
+        <p class="section-label" style="margin-bottom:0.2rem;">Analyse sémantique</p>
+        <h2 style="font-family:'Cormorant Garamond',serif; font-size:1.8rem; color:var(--navy); font-weight:300;">
+          Versions travaillées <span style="color:var(--gold);">par CamemBERT</span>
+        </h2>
+        <p style="font-size:0.85rem; color:var(--text-soft); margin-top:0.3rem; font-style:italic;">
+          Reformulation & synthèse automatiques par le modèle CamemBERT2CamemBERT (MLSUM-FR).
+        </p>
+      </div>
+      <div style="display:flex; gap:0.5rem; align-items:center;">
+        <button id="toggle-view" onclick="toggleVersions()" style="padding:0.5rem 1.2rem; border:1px solid var(--gold); border-radius:20px; background:transparent; color:var(--gold); font-size:0.8rem; font-weight:700; cursor:pointer; letter-spacing:0.05em; text-transform:uppercase; transition:all 0.2s;">
+          Voir source
+        </button>
+      </div>
+    </div>
+
+    <div id="versions-container" style="display:grid; grid-template-columns: 1fr 1fr; gap:2rem;">
+      
+      {% if fiche.signification_v %}
+      <div class="v-block">
+        <h3 class="v-title">Signification</h3>
+        <p class="v-text" data-source="{{ fiche.signification }}" data-travail="{{ fiche.signification_v }}">
+          {{ fiche.signification_v }}
+        </p>
+      </div>
+      {% endif %}
+
+      {% if fiche.etymologie_v %}
+      <div class="v-block">
+        <h3 class="v-title">Étymologie</h3>
+        <p class="v-text" data-source="{{ fiche.etymologie }}" data-travail="{{ fiche.etymologie_v }}">
+          {{ fiche.etymologie_v }}
+        </p>
+      </div>
+      {% endif %}
+
+      {% if fiche.provenance_v %}
+      <div class="v-block">
+        <h3 class="v-title">Provenance</h3>
+        <p class="v-text" data-source="{{ fiche.provenance }}" data-travail="{{ fiche.provenance_v }}">
+          {{ fiche.provenance_v }}
+        </p>
+      </div>
+      {% endif %}
+
+      {% if fiche.histoire_v %}
+      <div class="v-block">
+        <h3 class="v-title">Histoire</h3>
+        <p class="v-text" data-source="{{ fiche.histoire }}" data-travail="{{ fiche.histoire_v }}">
+          {{ fiche.histoire_v }}
+        </p>
+      </div>
+      {% endif %}
+
+    </div>
+  </div>
+</div>
+
+<style>
+  .v-block {
+    background: var(--cream);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.2rem 1.5rem;
+  }
+  .v-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--navy);
+    margin-bottom: 0.7rem;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+  .v-title::before {
+    content: '';
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--gold);
+    flex-shrink: 0;
+  }
+  .v-text {
+    font-size: 0.9rem;
+    line-height: 1.7;
+    color: var(--text);
+    transition: opacity 0.3s;
+  }
+  .v-text.source-mode {
+    color: var(--text-soft);
+    font-style: italic;
+  }
+  @media(max-width: 768px) {
+    #versions-container { grid-template-columns: 1fr !important; }
+  }
+</style>
+
+<script>
+  let showSource = false;
+  function toggleVersions() {
+    showSource = !showSource;
+    document.querySelectorAll('.v-text').forEach(el => {
+      el.textContent = showSource ? el.dataset.source : el.dataset.travail;
+      el.classList.toggle('source-mode', showSource);
+    });
+    document.getElementById('toggle-view').textContent = showSource ? 'Voir version travaillée' : 'Voir source';
+  }
+</script>
+{% endif %}
+
 {% endblock %}
 
 {% block scripts %}

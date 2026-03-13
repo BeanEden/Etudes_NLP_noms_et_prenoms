@@ -14,8 +14,12 @@ import os
 import re
 import sys
 import subprocess
+import unicodedata
+import numpy as np
 from collections import defaultdict
-from flask import Flask, render_template, request, jsonify, abort
+import nbformat
+from nbconvert import HTMLExporter
+from flask import Flask, render_template, request, jsonify, abort, g
 
 app = Flask(__name__)
 
@@ -23,17 +27,22 @@ app = Flask(__name__)
 # Chargement en mémoire au démarrage
 # ---------------------------------------------------------------------------
 
-BASE_DIR = os.path.dirname(os.path.dirname(__file__))
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 NOMS_DIR = os.path.join(BASE_DIR, "noms", "data")
 PRENOMS_DIR = os.path.join(BASE_DIR, "prenoms", "data")
 
-def _charger(filename, directory):
+def _charger(filename, directory, default=None):
+    if default is None: default = []
     path = os.path.join(directory, filename)
     if not os.path.isfile(path):
         print(f"File not found: {path}")
-        return []
+        return default
     with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
+        try:
+            return json.load(f)
+        except Exception as e:
+            print(f"Error loading {path}: {e}")
+            return default
 
 print("Loading noms data...")
 _noms_final    = _charger("4_noms_final_insee.json", NOMS_DIR)
@@ -47,7 +56,7 @@ NOMS_TRIES = sorted(INDEX_NOMS.keys())
 print("Loading prenoms data...")
 _prenoms_final     = _charger("4_prenoms_final.json", PRENOMS_DIR)
 _groupes_prenoms   = _charger("4_groupes_finals_prenoms.json", PRENOMS_DIR)
-_prenoms_tendances = _charger("5_prenoms_tendances.json", PRENOMS_DIR)
+_prenoms_tendances = _charger("5_prenoms_tendances.json", PRENOMS_DIR, default={})
 
 INDEX_PRENOMS: dict = {d["prenom"]: d for d in _prenoms_final}
 PRENOMS_TRIES = sorted(INDEX_PRENOMS.keys())
@@ -395,7 +404,7 @@ def api_search():
             matches.append({
                 "type_entite": "prenom",
                 "nom": p, 
-                "nom_original": p.title() + " (Prénom)"
+                "nom_original": INDEX_PRENOMS[p].get("prenom_original", p.title()) + " (Prénom)"
             })
         
     return jsonify(matches)
@@ -464,16 +473,18 @@ def compare():
         pts = []
         if entity_type == "nom":
             d = INDEX_NOMS.get(entity_id, {})
-            if "insee_data" in d and "historique" in d["insee_data"]:
-                for period, count in d["insee_data"]["historique"].items():
+            insee = d.get("insee_data")
+            if isinstance(insee, dict) and "historique" in insee:
+                for period, count in insee["historique"].items():
                     try:
-                        # "1891-1900" -> On place le point en 1900
+                        # "1891_1900" -> On place le point en 1900
                         y = int(period.replace("_", "-").split("-")[1])
-                        pts.append({"x": y, "y": count})
+                        # On divise par 10 pour avoir une moyenne annuelle comparable aux prénoms
+                        pts.append({"x": y, "y": count / 10.0})
                     except: pass
         elif entity_type == "prenom":
             d = _prenoms_tendances.get(entity_id, {})
-            if "national" in d:
+            if isinstance(d, dict) and "national" in d:
                 for item in d["national"]:
                     pts.append({"x": item["annee"], "y": item["count"]})
         return sorted(pts, key=lambda p: p["x"])
@@ -505,27 +516,76 @@ def stats():
     total_groupes_noms = len(INDEX_GROUPES)
     total_groupes_prenoms = len(_groupes_prenoms)
     
-    # Simple top 5 noms
+    # Agrégation par langue et par geographie
+    lang_counter = defaultdict(int)
+    geo_counter = defaultdict(int)
+    yearly_dist = defaultdict(int)
+    
+    for n in _noms_final:
+        if n.get("langue"): lang_counter[n["langue"]] += 1
+        if n.get("geo"): geo_counter[n["geo"]] += 1
+        
+    for p in _prenoms_final:
+        if p.get("langue"): lang_counter[p["langue"]] += 1
+        if p.get("geo"): geo_counter[p["geo"]] += 1
+        # Aggregation par année (chronologie)
+        tend = _prenoms_tendances.get(p["prenom"], {})
+        for entry in tend.get("national", []):
+            yearly_dist[entry["annee"]] += entry["count"]
+
+    # Top 10 langues et géo
+    top_langs = sorted(lang_counter.items(), key=lambda x: x[1], reverse=True)[:10]
+    top_geos = sorted(geo_counter.items(), key=lambda x: x[1], reverse=True)[:10]
+    
+    # Chronologie triée
+    timeline = sorted([{"annee": a, "count": c} for a, c in yearly_dist.items() if a >= 1890], key=lambda x: x["annee"])
+
+    # Top listes (triées par popularité totale)
     top_noms = []
     top_prenoms = []
     try:
-        # Trier les noms par fréquence insee (nombre_total)
         top_noms = sorted([n for n in _noms_final if "insee_data" in n and isinstance(n["insee_data"], dict)], 
                           key=lambda x: x["insee_data"].get("nombre_total", 0), reverse=True)[:10]
-        # Trier les prénoms par tendance totale
+        
         top_prenoms_keys = sorted(_prenoms_tendances.keys(), 
                                   key=lambda k: _prenoms_tendances[k].get("total", 0), reverse=True)[:10]
-        top_prenoms = [INDEX_PRENOMS[k] for k in top_prenoms_keys if k in INDEX_PRENOMS]
+        for k in top_prenoms_keys:
+            if k in INDEX_PRENOMS:
+                p_entry = dict(INDEX_PRENOMS[k])
+                p_entry["total"] = _prenoms_tendances[k].get("total", 0)
+                top_prenoms.append(p_entry)
     except Exception as e:
         print(f"Stats sorting error: {e}")
         
+    # Prénoms "Tendance" (ceux dont le pic est récent, ex: > 2015)
+    trending_prenoms = []
+    try:
+        trending_keys = []
+        for p, d in _prenoms_tendances.items():
+            if d.get("pic_annee", 0) >= 2018:
+                trending_keys.append((p, d.get("total", 0)))
+        
+        # Sort by total popularity among those trending
+        trending_keys = sorted(trending_keys, key=lambda x: x[1], reverse=True)[:10]
+        for k, _ in trending_keys:
+            if k in INDEX_PRENOMS:
+                entry = dict(INDEX_PRENOMS[k])
+                entry["pic_annee"] = _prenoms_tendances[k].get("pic_annee", "?")
+                trending_prenoms.append(entry)
+    except Exception as e:
+        print(f"Trending calculation error: {e}")
+
     return render_template("stats.html", 
         total_noms=total_noms, 
         total_prenoms=total_prenoms,
         total_groupes_noms=total_groupes_noms,
         total_groupes_prenoms=total_groupes_prenoms,
         top_noms=top_noms,
-        top_prenoms=top_prenoms
+        top_prenoms=top_prenoms,
+        trending_prenoms=trending_prenoms,
+        top_langs=top_langs,
+        top_geos=top_geos,
+        timeline=timeline
     )
 
 @app.route("/admin/regroupement")
@@ -606,6 +666,226 @@ def api_admin_run_regroupement():
 @app.errorhandler(404)
 def not_found(e):
     return render_template("404.html"), 404
+
+
+@app.route("/admin/test_integration")
+def admin_test_integration():
+    return render_template("admin_test_integration.html")
+
+# Global cache for model and index
+_MODEL_CACHE = {"st": None, "faiss": None, "data_clean": None, "groupes_index": None}
+
+@app.route("/api/admin/tester_integration", methods=["POST"])
+def api_admin_tester_integration():
+    try:
+        from sentence_transformers import SentenceTransformer
+        import faiss
+        from rapidfuzz.distance import Levenshtein as Lev
+    except ImportError:
+        return jsonify({"status": "error", "error": "Packages 'sentence-transformers', 'faiss-cpu' ou 'rapidfuzz' manquants."}), 500
+
+    data = request.json
+    prenom = data.get("prenom", "").strip()
+    texte = data.get("texte", "").strip()
+
+    if not prenom or not texte:
+        return jsonify({"status": "error", "error": "Prénom et texte requis."}), 400
+
+    # 1. Normalisation & Analyse initiale
+    def normaliser(s):
+        s = unicodedata.normalize("NFD", s)
+        s = "".join(c for c in s if unicodedata.category(c) != "Mn")
+        s = s.lower()
+        s = re.sub(r"[-'']", " ", s)
+        return " ".join(s.split())
+
+    prenom_norm = normaliser(prenom)
+    
+    # Simulation d'extraction langue/géo (plus simple ici pour le test)
+    langue = None
+    if re.search(r"(?i)\borigine\s+arabe\b", texte): langue = "arabe"
+    elif re.search(r"(?i)\borigine\s+grecque\b", texte): langue = "grec"
+    elif re.search(r"(?i)\borigine\s+latine\b", texte): langue = "latin"
+    elif re.search(r"(?i)\borigine\s+hébraïque\b", texte): langue = "hébreu"
+    
+    geo = None
+    if re.search(r"(?i)\bfrance\b", texte): geo = "france"
+    elif re.search(r"(?i)\ballemagne\b", texte): geo = "allemagne"
+
+    # Liens Levenshtein (simplifié)
+    liens_lev = []
+    seuil = 1 if len(prenom_norm) <= 4 else (2 if len(prenom_norm) <= 7 else 3)
+    for p_ref in PRENOMS_TRIES:
+        if p_ref == prenom_norm: continue
+        dist = Lev.distance(prenom_norm, p_ref, score_cutoff=seuil)
+        if dist is not None and dist <= seuil:
+            liens_lev.append((INDEX_PRENOMS[p_ref]["prenom_original"], int(dist)))
+            if len(liens_lev) > 5: break
+
+    # 2. Embedding & FAISS
+    if _MODEL_CACHE["st"] is None:
+        _MODEL_CACHE["st"] = SentenceTransformer("Lajavaness/sentence-camembert-base")
+    
+    texte_emb = texte + " | " + texte
+    emb_query = _MODEL_CACHE["st"].encode([texte_emb], convert_to_numpy=True)
+    faiss.normalize_L2(emb_query)
+
+    if _MODEL_CACHE["faiss"] is None:
+        path_npy = os.path.join(PRENOMS_DIR, "3_embeddings.npy")
+        if os.path.exists(path_npy):
+            embs = np.load(path_npy).astype('float32')
+            idx = faiss.IndexFlatIP(embs.shape[1])
+            idx.add(embs)
+            _MODEL_CACHE["faiss"] = idx
+            _MODEL_CACHE["total_vectors"] = embs.shape[0]
+        else:
+            return jsonify({"status": "error", "error": "Fichier d'embeddings non trouvé (3_embeddings.npy)."}), 500
+
+    if _MODEL_CACHE["data_clean"] is None:
+        _MODEL_CACHE["data_clean"] = _charger("2_prenoms_clean.json", PRENOMS_DIR)
+
+    # Index des groupes : id_groupe_total -> liste des prénoms originaux du groupe
+    if _MODEL_CACHE["groupes_index"] is None:
+        groupes_raw = _charger("4_groupes_finals_prenoms.json", PRENOMS_DIR)
+        # Chaque groupe contient une liste "prenoms" (normalisés) -> on cherche les noms originaux
+        _grp_idx = {}
+        for grp in groupes_raw:
+            gid = grp.get("id_groupe_total", "")
+            # Les prénoms dans le groupe sont en form normalisée ; on récupère les originaux via INDEX_PRENOMS
+            membres_originaux = []
+            for pn in grp.get("prenoms", []):
+                if pn in INDEX_PRENOMS:
+                    membres_originaux.append(INDEX_PRENOMS[pn]["prenom_original"])
+                else:
+                    membres_originaux.append(pn.title())
+            _grp_idx[gid] = membres_originaux
+        _MODEL_CACHE["groupes_index"] = _grp_idx
+
+    D, I = _MODEL_CACHE["faiss"].search(emb_query, 5)
+    
+    matches = []
+    for dist, idx in zip(D[0], I[0]):
+        ref = _MODEL_CACHE["data_clean"][idx]
+        sim_sem = float(dist)
+        bonus_langue = 0.04 if langue and langue == ref.get("langue") else 0
+        bonus_geo = 0.02 if geo and geo == ref.get("geo") else 0
+        score = sim_sem + bonus_langue + bonus_geo
+        
+        # F1 score: precision = score final (inclus les bonuses), recall = sim sémantique brute
+        # F1 = 2 * P * R / (P + R), plafonné à 1.0
+        precision = min(score, 1.0)
+        recall = sim_sem
+        if precision + recall > 0:
+            f1 = 2 * precision * recall / (precision + recall)
+        else:
+            f1 = 0.0
+        
+        # Prénoms liés au groupe du candidat
+        gid = ref.get("id_groupe_total", "?")
+        membres_groupe = _MODEL_CACHE["groupes_index"].get(gid, []) if _MODEL_CACHE["groupes_index"] else []
+        # Exclure le candidat lui-même
+        lies = [p for p in membres_groupe if p != ref["prenom_original"]][:8]
+
+        matches.append({
+            "nom": ref["prenom_original"],
+            "id_groupe": gid,
+            "lies": lies,
+            "sim": sim_sem,
+            "langue": ref.get("langue"),
+            "geo": ref.get("geo"),
+            "score": score,
+            "f1": round(f1, 4),
+            "decision": "FUSION" if score >= 0.92 else "REJET"
+        })
+
+    # Résumé global : F1 moyen & meilleur candidat
+    best_match = max(matches, key=lambda m: m["f1"]) if matches else None
+    global_f1 = round(sum(m["f1"] for m in matches) / len(matches), 4) if matches else 0.0
+
+    return jsonify({
+        "status": "success",
+        "data": {
+            "step1": {
+                "prenom_norm": prenom_norm,
+                "langue": langue,
+                "geo": geo,
+                "liens_lev": liens_lev
+            },
+            "step2": {
+                "texte_emb": texte_emb[:200] + "...",
+                "total_vectors": _MODEL_CACHE["total_vectors"]
+            },
+            "matches": matches,
+            "summary": {
+                "global_f1": global_f1,
+                "best_candidate": best_match["nom"] if best_match else None,
+                "best_f1": best_match["f1"] if best_match else None,
+                "best_decision": best_match["decision"] if best_match else None,
+            }
+        }
+    })
+
+
+@app.route("/notebooks")
+def list_notebooks():
+    """Liste tous les notebooks (.ipynb) du projet de manière récursive."""
+    notebooks = []
+    
+    # Parcourir récursivement pour trouver tous les notebooks
+    for root, dirs, files in os.walk(BASE_DIR):
+        # Exclure les dossiers inutiles
+        if any(x in root for x in [".venv", ".git", ".ipynb_checkpoints", "node_modules"]):
+            continue
+            
+        for file in files:
+            if file.endswith(".ipynb"):
+                abs_path = os.path.join(root, file)
+                rel_path = os.path.relpath(abs_path, BASE_DIR)
+                
+                notebooks.append({
+                    "name": file,
+                    "path": rel_path.replace("\\", "/")
+                })
+                
+    # Trier par nom
+    notebooks.sort(key=lambda x: x["name"])
+    
+    return render_template("notebooks.html", notebooks=notebooks)
+
+
+@app.route("/notebook/view")
+def view_notebook():
+    """Convertit un notebook en HTML et l'affiche."""
+    nb_path = request.args.get("path")
+    if not nb_path:
+        abort(404)
+    
+    # Sécurité : on restreint l'accès aux fichiers .ipynb uniquement
+    abs_path = os.path.abspath(os.path.join(BASE_DIR, nb_path))
+    if not abs_path.startswith(BASE_DIR) or not abs_path.endswith(".ipynb"):
+        abort(403)
+        
+    if not os.path.isfile(abs_path):
+        abort(404)
+        
+    try:
+        with open(abs_path, "r", encoding="utf-8") as f:
+            nb_node = nbformat.read(f, as_version=4)
+            
+        html_exporter = HTMLExporter()
+        # On ne force pas le template 'classic' pour laisser nbconvert choisir le plus adapté
+        (body, resources) = html_exporter.from_notebook_node(nb_node)
+        
+        # Injection des CSS Jupyter pour que le rendu soit correct (cellules, graphiques, etc.)
+        custom_css = ""
+        if 'inlining' in resources and 'css' in resources['inlining']:
+            custom_css = "\n".join(resources['inlining']['css'])
+        
+        full_html = f"<style>{custom_css}</style>\n{body}"
+        
+        return render_template("notebook_view.html", notebook_html=full_html, notebook_name=os.path.basename(nb_path))
+    except Exception as e:
+        return f"Erreur lors de la conversion du notebook : {e}", 500
 
 
 if __name__ == "__main__":

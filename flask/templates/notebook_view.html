@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block title %}{{ notebook_name }} - Etymia View{% endblock %}
+
+{% block extra_css %}
+<style>
+  .notebook-viewer-container {
+    max-width: 1200px;
+    margin: 2rem auto;
+    padding: 0 1.5rem;
+  }
+  
+  .notebook-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border);
+  }
+  
+  .notebook-info h1 {
+    font-family: 'Libre Baskerville', serif;
+    font-size: 1.8rem;
+    color: var(--navy);
+    margin: 0;
+  }
+  
+  .back-link {
+    display: flex;
+    align-items: center;
+    color: var(--gold);
+    text-decoration: none;
+    font-weight: 600;
+    transition: color 0.2s;
+  }
+  
+  .back-link:hover {
+    color: var(--navy);
+  }
+  
+  .back-link i {
+    margin-right: 0.5rem;
+  }
+
+  /* Container for nbconvert HTML */
+  .notebook-content {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: var(--shadow);
+    overflow-x: auto;
+    padding: 1rem;
+  }
+  
+  /* Overrides to ensure the notebook content is readable */
+  .notebook-content .jp-Notebook {
+    padding: 0;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="notebook-viewer-container fade-up">
+  <div class="notebook-header">
+    <div class="notebook-info">
+      <a href="/notebooks" class="back-link">
+        <i class="bi bi-arrow-left"></i> Retour aux notebooks
+      </a>
+      <h1>{{ notebook_name }}</h1>
+    </div>
+    <div class="actions">
+      <button onclick="window.print()" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-printer"></i> Imprimer / PDF
+      </button>
+    </div>
+  </div>
+
+  <div class="notebook-content">
+    {{ notebook_html | safe }}
+  </div>
+</div>
+{% endblock %}

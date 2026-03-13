@@ -6,43 +6,36 @@ Sorties : prenoms/data/4_prenoms_final.json        (un objet par prénom, prêt 
           prenoms/data/4_groupes_finals_prenoms.json (un objet par groupe)
 Cache   : prenoms/data/4_cache_paraphrase.pkl
 
-Structure prenoms_final.json (lookup direct Flask) :
-    {
-        "id":              str,
-        "prenom":          str,
-        "prenom_original": str,
-        "sexe":            str,
-        "id_groupe_total": int,
-        "langue":          str,
-        "religion":        str,
-        "geo":             str,
-        "date":            {"label": str, "valeur": int|null},
-        "prenoms_lies":    [str],
-        "prenoms_groupe":  [str],
-        "etymologie":      str,   # reformulé via pivot FR→EN→FR
-        "provenance":      str,
-        "histoire":        str,
-        "signification":   str,
-    }
+Reformulation : CamemBERT2CamemBERT (EncoderDecoderModel) fine-tuné sur MLSUM FR.
+    Modèle  : mrm8488/camembert2camembert_shared-finetuned-french-summarization
+    API     : RobertaTokenizerFast + EncoderDecoderModel (pas MarianMT)
+    Poids   : 559 Mo (safetensors), CPU viable
+    Objectif: diversification du texte affiché — éviter le copié-collé visible
 
-Reformulation : pivot Helsinki FR→EN→FR par champ, par prénom individuel.
 Cache disque keyed sur SHA256 du texte source : idempotent, les textes
 identiques entre prénoms ne sont traduits qu'une seule fois.
 
-Déduplication post-pivot : si la reformulation est trop proche de la
-source (sim cosine TF-IDF > DEDUP_SEUIL), on conserve la source nettoyée
-— le pivot n'a rien apporté et on l'indique plutôt que de mentir.
+Gestion des textes longs (> MAX_TOKENS) :
+    Segmentation par phrase, reformulation par blocs de MAX_TOKENS tokens,
+    concaténation des sorties. Helsinki tronquait silencieusement — ici on gère.
 
-Estimation CPU : ~8 000 prénoms × 4 champs × 2 passes = ~85 min premier run.
-Relances avec cache complet : < 10 secondes.
+Vérification post-reformulation :
+    Si sim cosine TF-IDF source/reformulé > DEDUP_SEUIL, le modèle n'a rien
+    apporté (texte trop court ou trop générique) — repli sur source nettoyée.
+
+Estimation CPU :
+    ~5 000 textes uniques × ~1.5 s/texte = ~2 h premier run avec num_beams=4.
+    Réduire num_beams à 1 (greedy) pour passer sous 20 min.
+    NUM_BEAMS est configurable via --num_beams.
+    Relances avec cache complet : < 10 secondes.
 
 Dépendances :
-    pip install transformers sentencepiece sacremoses torch
+    pip install transformers sentencepiece torch
     pip install scikit-learn numpy tqdm
-    (sacremoses est requis par le tokenizer Helsinki — ne pas omettre)
     Vérification post-install : pip check
 """
 
+import argparse
 import hashlib
 import json
 import logging
@@ -57,31 +50,40 @@ from sklearn.metrics.pairwise import cosine_similarity
 from tqdm import tqdm
 
 try:
-    from transformers import MarianMTModel, MarianTokenizer
-    HAS_HELSINKI = True
+    import torch
+    from transformers import RobertaTokenizerFast, EncoderDecoderModel
+    HAS_MODEL = True
 except ImportError:
-    HAS_HELSINKI = False
+    HAS_MODEL = False
 
 INPUT_GROUPED    = "prenoms/data/3_prenoms_grouped.json"
 OUTPUT_PRENOMS   = "prenoms/data/4_prenoms_final.json"
 OUTPUT_GROUPES   = "prenoms/data/4_groupes_finals_prenoms.json"
 CACHE_PARAPHRASE = "prenoms/data/4_cache_paraphrase.pkl"
 
-MODEL_FR_EN = "Helsinki-NLP/opus-mt-fr-en"
-MODEL_EN_FR = "Helsinki-NLP/opus-mt-en-fr"
+MODEL_CKPT = "mrm8488/camembert2camembert_shared-finetuned-french-summarization"
 
 CHAMPS_REFORMULER = ("etymologie", "provenance", "histoire", "signification")
 
-# Seuil au-dessus duquel on considère que le pivot n'a pas apporté
-# de variation suffisante — repli sur source nettoyée.
+# Seuil au-dessus duquel la reformulation est jugée trop proche de la source.
+# Repli sur source nettoyée si sim cosine TF-IDF > DEDUP_SEUIL.
 DEDUP_SEUIL = 0.97
 
-# Plafond caractères transmis au tokenizer Helsinki.
-# Helsinki supporte ~512 tokens (≈ 2 000 chars français). Marge de sécurité
-# pour éviter les troncatures silencieuses sur les textes longs.
-MAX_CHARS_TRADUCTION = 1800
+# Nombre de tokens maximum transmis au modèle en une passe.
+# EncoderDecoderModel / CamemBERT supporte 512 tokens.
+# Marge à 480 pour laisser de l'espace aux tokens spéciaux.
+MAX_TOKENS = 480
 
-BATCH_SIZE = 32
+# num_beams=1 (greedy) : ~20 min sur CPU pour 8 000 prénoms.
+# num_beams=4 (beam search) : meilleure qualité, ~2 h sur CPU.
+NUM_BEAMS = 1
+
+# Longueur minimale de sortie générée (tokens). Evite les outputs trop courts
+# sur les textes riches en information factuelle.
+MIN_LENGTH_OUT = 20
+
+# Taille du batch pour le generate(). Réduire à 4 si OOM sur CPU.
+BATCH_SIZE = 8
 
 logging.basicConfig(
     level=logging.INFO,
@@ -98,7 +100,7 @@ log = logging.getLogger(__name__)
 def charger_cache(path: str) -> dict:
     """
     Cache dict[sha256_hex -> texte_reformule].
-    Clé SHA256 du texte source : invariante aux réordonnements du JSON
+    Clé SHA256 du texte source : invariante aux réordonnements JSON
     et aux relances partielles.
     """
     if os.path.isfile(path):
@@ -121,94 +123,189 @@ def cle_cache(texte: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Modèles Helsinki — pivot FR→EN→FR
+# Modèle CamemBERT2CamemBERT
 # ---------------------------------------------------------------------------
 
-class PivotParaphraser:
+class CamembertParaphraser:
     """
-    Reformulation FR→EN→FR via Helsinki-NLP/opus-mt-fr-en + opus-mt-en-fr.
+    Reformulation française via EncoderDecoderModel (CamemBERT2CamemBERT).
 
-    Besoin : produire des reformulations locales sans API externe.
-    Choix pivot anglais : modèles OPUS les plus stables pour le français,
-    légers (~300 Mo chacun), Apache 2.0, CPU viables.
-    La re-traduction FR→EN→FR introduit une variation syntaxique et lexicale
-    réelle sans modifier le contenu factuel — adapté aux textes étymologiques.
+    Besoin : diversification du texte affiché sans API externe, en français natif.
 
-    num_beams=4 : compromis qualité/vitesse. Réduire à 2 si trop lent sur CPU.
-    batch_size : réduire à 8-16 si OOM.
+    Choix vs Helsinki FR→EN→FR :
+        - Natif français : pas de double erreur de traduction sur les noms propres
+          et termes étymologiques.
+        - Fine-tuné sur MLSUM FR (1.5M paires article/résumé) : reformule en
+          conservant les faits, varie la structure syntaxique.
+        - 559 Mo vs ~600 Mo par modèle Helsinki (2 modèles = 1.2 Go).
+        - API : RobertaTokenizerFast + EncoderDecoderModel (pas MarianMT).
+
+    Gestion des textes longs :
+        Segmentation par phrase puis encodage par blocs de MAX_TOKENS tokens.
+        Chaque bloc est reformulé indépendamment, les sorties sont concaténées.
+        Evite la troncature silencieuse du tokenizer.
+
+    num_beams=1 (greedy) par défaut : ~20 min sur CPU pour 8 000 prénoms.
     """
 
-    def __init__(self, batch_size: int = BATCH_SIZE):
-        if not HAS_HELSINKI:
+    def __init__(self, num_beams: int = NUM_BEAMS, batch_size: int = BATCH_SIZE):
+        if not HAS_MODEL:
             raise RuntimeError(
-                "transformers non installe. "
-                "pip install transformers sentencepiece sacremoses torch"
+                "transformers ou torch non installe. "
+                "pip install transformers sentencepiece torch"
             )
-        log.info("Chargement %s...", MODEL_FR_EN)
-        self._tok_fr_en = MarianTokenizer.from_pretrained(MODEL_FR_EN)
-        self._mod_fr_en = MarianMTModel.from_pretrained(MODEL_FR_EN)
-        self._mod_fr_en.eval()
-
-        log.info("Chargement %s...", MODEL_EN_FR)
-        self._tok_en_fr = MarianTokenizer.from_pretrained(MODEL_EN_FR)
-        self._mod_en_fr = MarianMTModel.from_pretrained(MODEL_EN_FR)
-        self._mod_en_fr.eval()
-
+        log.info("Chargement %s...", MODEL_CKPT)
+        self._tokenizer = RobertaTokenizerFast.from_pretrained(MODEL_CKPT)
+        self._model     = EncoderDecoderModel.from_pretrained(MODEL_CKPT)
+        self._model.eval()
+        self._num_beams  = num_beams
         self._batch_size = batch_size
-        log.info("Modeles Helsinki prets.")
+        self._device     = "cuda" if torch.cuda.is_available() else "cpu"
+        self._model.to(self._device)
+        log.info(
+            "Modele pret (device=%s, num_beams=%d, batch_size=%d).",
+            self._device, num_beams, batch_size,
+        )
 
-    def _traduire_batch(
-        self,
-        textes: list,
-        tokenizer: MarianTokenizer,
-        model: MarianMTModel,
-    ) -> list:
-        import torch
-        resultats = []
-        for i in range(0, len(textes), self._batch_size):
-            batch  = textes[i : i + self._batch_size]
-            tokens = tokenizer(
-                batch,
-                return_tensors="pt",
-                padding=True,
-                truncation=True,
-                max_length=512,
-            )
-            with torch.no_grad():
-                traduit = model.generate(**tokens, num_beams=4)
-            decoded = tokenizer.batch_decode(traduit, skip_special_tokens=True)
-            resultats.extend(decoded)
-        return resultats
-
-    def paraphraser_batch(self, textes: list) -> list:
+    def _segmenter(self, texte: str) -> list:
         """
-        Applique le pivot FR→EN→FR sur une liste de textes non vides.
+        Découpe un texte en phrases via regex.
+        Retourne une liste de blocs dont chacun tient en MAX_TOKENS tokens.
+        Les phrases sont accumulées dans un bloc jusqu'au dépassement du seuil,
+        puis un nouveau bloc est ouvert — jamais de coupure en milieu de phrase.
+        """
+        phrases  = re.split(r"(?<=[.!?])\s+", texte.strip())
+        blocs    = []
+        courant  = []
+        n_tokens = 0
+
+        for phrase in phrases:
+            t = len(self._tokenizer.encode(phrase, add_special_tokens=False))
+            if n_tokens + t > MAX_TOKENS and courant:
+                blocs.append(" ".join(courant))
+                courant  = [phrase]
+                n_tokens = t
+            else:
+                courant.append(phrase)
+                n_tokens += t
+
+        if courant:
+            blocs.append(" ".join(courant))
+
+        return blocs if blocs else [texte]
+
+    def _reformuler_blocs(self, blocs: list) -> str:
+        """
+        Reformule une liste de blocs via generate() et concatène les sorties.
+        padding="max_length" obligatoire pour EncoderDecoderModel (comportement
+        dégradé avec padding dynamique sur ce checkpoint).
+        """
+        resultats = []
+        for i in range(0, len(blocs), self._batch_size):
+            batch  = blocs[i : i + self._batch_size]
+            inputs = self._tokenizer(
+                batch,
+                padding="max_length",
+                truncation=True,
+                max_length=MAX_TOKENS,
+                return_tensors="pt",
+            )
+            input_ids      = inputs.input_ids.to(self._device)
+            attention_mask = inputs.attention_mask.to(self._device)
+
+            with torch.no_grad():
+                output = self._model.generate(
+                    input_ids,
+                    attention_mask=attention_mask,
+                    num_beams=self._num_beams,
+                    min_length=MIN_LENGTH_OUT,
+                    no_repeat_ngram_size=3,
+                )
+            decoded = self._tokenizer.batch_decode(output, skip_special_tokens=True)
+            resultats.extend(decoded)
+
+        return " ".join(resultats)
+
+    def reformuler(self, texte: str) -> str:
+        """
+        Point d'entrée principal : segmente si nécessaire, reformule, retourne.
         Les textes vides sont retournés tels quels sans appel modèle.
-        Retourne une liste de même longueur.
+        """
+        if not texte or not texte.strip():
+            return texte
+        blocs = self._segmenter(texte)
+        return self._reformuler_blocs(blocs)
+
+    def reformuler_batch(self, textes: list) -> list:
+        """
+        Reformule une liste de textes en préservant l'ordre et les vides.
+        Regroupe les blocs de tous les textes en un seul passage batch
+        pour maximiser l'utilisation CPU/GPU.
+
+        Stratégie :
+            1. Segmente chaque texte en blocs.
+            2. Aplatit tous les blocs dans une liste unique avec index de retour.
+            3. Appelle generate() en batch sur la liste aplatie.
+            4. Réassemble les sorties par texte source.
         """
         indices_valides = [i for i, t in enumerate(textes) if t and t.strip()]
         if not indices_valides:
-            return textes[:]
+            return list(textes)
 
-        sources   = [textes[i][:MAX_CHARS_TRADUCTION] for i in indices_valides]
-        en_batch  = self._traduire_batch(sources, self._tok_fr_en, self._mod_fr_en)
-        fr2_batch = self._traduire_batch(en_batch,  self._tok_en_fr, self._mod_en_fr)
+        # Segmentation — blocs_map[i] = liste de blocs du texte i
+        blocs_map     = {i: self._segmenter(textes[i]) for i in indices_valides}
+        tous_blocs    = []
+        retour_index  = []   # (idx_texte, idx_bloc_dans_texte)
+        for i, blocs in blocs_map.items():
+            for b_idx, bloc in enumerate(blocs):
+                tous_blocs.append(bloc)
+                retour_index.append((i, b_idx))
+
+        # Generate en batch unique
+        sorties_blocs = []
+        for k in range(0, len(tous_blocs), self._batch_size):
+            batch  = tous_blocs[k : k + self._batch_size]
+            inputs = self._tokenizer(
+                batch,
+                padding="max_length",
+                truncation=True,
+                max_length=MAX_TOKENS,
+                return_tensors="pt",
+            )
+            input_ids      = inputs.input_ids.to(self._device)
+            attention_mask = inputs.attention_mask.to(self._device)
+            with torch.no_grad():
+                output = self._model.generate(
+                    input_ids,
+                    attention_mask=attention_mask,
+                    num_beams=self._num_beams,
+                    min_length=MIN_LENGTH_OUT,
+                    no_repeat_ngram_size=3,
+                )
+            decoded = self._tokenizer.batch_decode(output, skip_special_tokens=True)
+            sorties_blocs.extend(decoded)
+
+        # Réassemblage par texte
+        texte_blocs_sortie: dict = defaultdict(list)
+        for sortie, (i, b_idx) in zip(sorties_blocs, retour_index):
+            texte_blocs_sortie[i].append((b_idx, sortie))
 
         resultats = list(textes)
-        for pos, idx in enumerate(indices_valides):
-            resultats[idx] = fr2_batch[pos]
+        for i in indices_valides:
+            blocs_sorted = sorted(texte_blocs_sortie[i], key=lambda x: x[0])
+            resultats[i] = " ".join(s for _, s in blocs_sorted)
+
         return resultats
 
 
 # ---------------------------------------------------------------------------
-# Vérification de variation post-pivot
+# Vérification de variation post-reformulation
 # ---------------------------------------------------------------------------
 
 def construire_verificateur(corpus: list) -> TfidfVectorizer:
     """
     Vectoriseur TF-IDF entraîné sur tous les textes sources.
     Utilisé uniquement pour la sim cosine source/reformulé.
-    min_df=1 : corpus hétérogène, pas de seuil de fréquence minimum.
     """
     textes_clean = [t if t and t.strip() else "__vide__" for t in corpus]
     vec = TfidfVectorizer(analyzer="word", ngram_range=(1, 2), min_df=1)
@@ -218,9 +315,8 @@ def construire_verificateur(corpus: list) -> TfidfVectorizer:
 
 def est_trop_proche(source: str, reformule: str, vec: TfidfVectorizer) -> bool:
     """
-    Retourne True si la reformulation est quasi-identique à la source
-    (sim cosine TF-IDF > DEDUP_SEUIL).
-    Indique que le pivot n'a produit aucune variation utile.
+    True si la reformulation est quasi-identique à la source (sim > DEDUP_SEUIL).
+    Indique que le modèle n'a produit aucune variation utile.
     """
     if not source or not reformule:
         return False
@@ -233,13 +329,14 @@ def est_trop_proche(source: str, reformule: str, vec: TfidfVectorizer) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Nettoyage post-traduction
+# Nettoyage post-reformulation
 # ---------------------------------------------------------------------------
 
 def nettoyer_reformulation(texte: str) -> str:
     """
     Normalise espaces, majuscule initiale et ponctuation finale.
-    Helsinki produit parfois des segments sans majuscule ou sans point final.
+    Le modèle CamemBERT2CamemBERT produit parfois des segments sans
+    majuscule initiale ou avec des espaces multiples.
     """
     texte = re.sub(r"\s+", " ", texte).strip()
     if not texte:
@@ -263,7 +360,7 @@ def valeur_majoritaire(valeurs: list) -> str:
 
 def date_majoritaire(dates: list) -> dict:
     """
-    Retourne la date la plus fréquente (par label) parmi les membres du groupe.
+    Retourne la date la plus fréquente (par label) parmi les membres.
     En cas d'égalité, préfère la date la plus ancienne.
     """
     valides = [d for d in dates if d and d.get("valeur")]
@@ -287,28 +384,27 @@ def reformuler_corpus(
 ) -> dict:
     """
     Besoin : reformuler chaque champ de chaque prénom en minimisant
-    les appels au paraphraser via déduplication par hash de texte source.
+    les appels au modèle via déduplication par hash de texte source.
 
     Passe 1 : inventaire des textes non encore cachés, par champ.
-    Passe 2 : traduction batch par champ sur les textes manquants.
-              Vérification cosine post-pivot — repli source si trop proche.
-    Passe 3 : résolution dict[id_prenom -> dict[champ -> reformulé]]
-              depuis le cache complet.
+    Passe 2 : reformulation batch par champ sur les textes manquants.
+              Vérification cosine post-reformulation — repli source si trop proche.
+    Passe 3 : résolution dict[id_prenom -> dict[champ -> reformulé]].
 
-    Repli sans paraphraser (Helsinki absent) : source nettoyée et tronquée.
+    Repli sans modèle : source nettoyée sans reformulation.
     """
     # Passe 1
-    a_traduire: dict = {c: {} for c in CHAMPS_REFORMULER}
+    a_reformuler: dict = {c: {} for c in CHAMPS_REFORMULER}
     for item in data:
         for champ in CHAMPS_REFORMULER:
             texte = item.get(champ) or ""
             if not texte.strip():
                 continue
             cle = cle_cache(texte)
-            if cle not in cache and cle not in a_traduire[champ]:
-                a_traduire[champ][cle] = texte
+            if cle not in cache and cle not in a_reformuler[champ]:
+                a_reformuler[champ][cle] = texte
 
-    total = sum(len(v) for v in a_traduire.values())
+    total = sum(len(v) for v in a_reformuler.values())
     log.info(
         "Textes a reformuler : %d uniques | cache existant : %d entrees",
         total, len(cache),
@@ -317,25 +413,31 @@ def reformuler_corpus(
     # Passe 2
     if paraphraser is not None and total > 0:
         for champ in CHAMPS_REFORMULER:
-            if not a_traduire[champ]:
+            if not a_reformuler[champ]:
                 continue
-            cles   = list(a_traduire[champ].keys())
-            textes = [a_traduire[champ][c] for c in cles]
+            cles   = list(a_reformuler[champ].keys())
+            textes = [a_reformuler[champ][c] for c in cles]
             log.info("Reformulation '%s' : %d textes...", champ, len(textes))
 
-            reformules = paraphraser.paraphraser_batch(textes)
+            reformules = paraphraser.reformuler_batch(textes)
 
+            n_repli = 0
             for cle, source, reformule in zip(cles, textes, reformules):
                 reformule = nettoyer_reformulation(reformule)
                 if not reformule or est_trop_proche(source, reformule, vec_dedup):
-                    # Pivot sans apport : on conserve la source nettoyée
-                    reformule = nettoyer_reformulation(source[:MAX_CHARS_TRADUCTION])
+                    reformule = nettoyer_reformulation(source)
+                    n_repli  += 1
                 cache[cle] = reformule
+
+            log.info(
+                "  -> %d/%d replis sur source (reformulation sans apport)",
+                n_repli, len(cles),
+            )
     else:
-        # Repli : source nettoyée sans traduction
+        # Repli : source nettoyée sans reformulation
         for champ in CHAMPS_REFORMULER:
-            for cle, texte in a_traduire[champ].items():
-                cache[cle] = nettoyer_reformulation(texte[:MAX_CHARS_TRADUCTION])
+            for cle, texte in a_reformuler[champ].items():
+                cache[cle] = nettoyer_reformulation(texte)
 
     # Passe 3
     resultats: dict = {}
@@ -345,13 +447,14 @@ def reformuler_corpus(
         for champ in CHAMPS_REFORMULER:
             texte = item.get(champ) or ""
             if not texte.strip():
-                resultats[pid][champ] = ""
+                resultats[pid][champ]          = ""
+                resultats[pid][champ + "_v"]   = ""
                 continue
             cle = cle_cache(texte)
-            resultats[pid][champ] = cache.get(
-                cle,
-                nettoyer_reformulation(texte[:MAX_CHARS_TRADUCTION]),
-            )
+            source_nettoyee = nettoyer_reformulation(texte)
+            reformule       = cache.get(cle, source_nettoyee)
+            resultats[pid][champ]          = source_nettoyee   # texte brut nettoyé
+            resultats[pid][champ + "_v"]   = reformule          # version CamemBERT
 
     return resultats
 
@@ -362,12 +465,11 @@ def reformuler_corpus(
 
 def construire_sorties(data: list, reformulations: dict) -> tuple:
     """
-    Besoin : assembler les deux fichiers de sortie.
+    Assemble les deux fichiers de sortie.
 
-    Champs catégoriels (langue, religion, geo, date) : agrégés au niveau
-    groupe par vote majoritaire — cohérence inter-pipelines.
-    Champs textuels (etymologie, provenance, histoire, signification) :
-    individuels, reformulation propre à chaque prénom.
+    Champs catégoriels (langue, religion, geo, date) : agrégés par vote
+    majoritaire au niveau groupe.
+    Champs textuels : individuels, reformulation propre à chaque prénom.
     prenoms_lies : union dédupliquée sur tous les membres du groupe.
     """
     groupes: dict = defaultdict(list)
@@ -430,9 +532,13 @@ def construire_sorties(data: list, reformulations: dict) -> tuple:
             "prenoms_lies":    meta.get("prenoms_lies",   []),
             "prenoms_groupe":  meta.get("prenoms_groupe", []),
             "etymologie":      ref.get("etymologie",      ""),
+            "etymologie_v":    ref.get("etymologie_v",    ""),
             "provenance":      ref.get("provenance",      ""),
+            "provenance_v":    ref.get("provenance_v",    ""),
             "histoire":        ref.get("histoire",        ""),
+            "histoire_v":      ref.get("histoire_v",      ""),
             "signification":   ref.get("signification",   ""),
+            "signification_v": ref.get("signification_v", ""),
         })
 
     return prenoms_final, groupes_finals
@@ -443,6 +549,29 @@ def construire_sorties(data: list, reformulations: dict) -> tuple:
 # ---------------------------------------------------------------------------
 
 def main():
+    global NUM_BEAMS, BATCH_SIZE, DEDUP_SEUIL
+
+    parser = argparse.ArgumentParser(
+        description="Phase 3 prénoms — reformulation CamemBERT2CamemBERT."
+    )
+    parser.add_argument(
+        "--num_beams", type=int, default=NUM_BEAMS,
+        help="Nombre de beams (1=greedy ~20 min CPU, 4=qualité ~2h CPU).",
+    )
+    parser.add_argument(
+        "--batch_size", type=int, default=BATCH_SIZE,
+        help="Taille du batch generate(). Réduire si OOM.",
+    )
+    parser.add_argument(
+        "--dedup_seuil", type=float, default=DEDUP_SEUIL,
+        help="Seuil cosine TF-IDF pour repli sur source (défaut 0.97).",
+    )
+    args = parser.parse_args()
+
+    NUM_BEAMS   = args.num_beams
+    BATCH_SIZE  = args.batch_size
+    DEDUP_SEUIL = args.dedup_seuil
+
     if not os.path.isfile(INPUT_GROUPED):
         log.error("Fichier introuvable : %s", INPUT_GROUPED)
         return
@@ -453,8 +582,6 @@ def main():
         data = json.load(f)
     log.info("%d entrees chargees", len(data))
 
-    # Vectoriseur pour la vérification post-pivot — entraîné sur toutes
-    # les sources pour avoir un espace TF-IDF commun représentatif.
     tous_textes_sources = [
         t
         for item in data
@@ -470,17 +597,20 @@ def main():
     cache = charger_cache(CACHE_PARAPHRASE)
 
     paraphraser = None
-    if HAS_HELSINKI:
+    if HAS_MODEL:
         try:
-            paraphraser = PivotParaphraser(batch_size=BATCH_SIZE)
+            paraphraser = CamembertParaphraser(
+                num_beams=NUM_BEAMS,
+                batch_size=BATCH_SIZE,
+            )
         except Exception as exc:
             log.warning(
-                "Impossible de charger Helsinki (%s) — repli source nettoyee.", exc
+                "Impossible de charger le modele (%s) — repli source nettoyee.", exc
             )
     else:
         log.warning(
-            "transformers non installe — champs = source nettoyee. "
-            "pip install transformers sentencepiece sacremoses torch"
+            "transformers/torch non installe — champs = source nettoyee. "
+            "pip install transformers sentencepiece torch"
         )
 
     reformulations = reformuler_corpus(data, paraphraser, cache, vec_dedup)
@@ -496,7 +626,6 @@ def main():
         json.dump(groupes_finals, f, ensure_ascii=False, indent=2)
     log.info("Export : %s (%d groupes)", OUTPUT_GROUPES, len(groupes_finals))
 
-    # Statistiques de couverture
     n_groupes = len(groupes_finals)
     for champ in ("langue", "religion", "geo"):
         nb = sum(1 for g in groupes_finals if g[champ])

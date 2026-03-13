@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    ports:
+      - "5000:5000"
+    volumes:
+      - .:/app
+    environment:
+      - FLASK_ENV=development
+      - PYTHONUNBUFFERED=1
+    stdin_open: true
+    tty: true
+
+  pipeline:
+    build: .
+    volumes:
+      - .:/app
+    command: python run_pipeline.py
+    stdin_open: true
+    tty: true

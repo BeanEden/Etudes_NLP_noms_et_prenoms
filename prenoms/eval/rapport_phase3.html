@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rapport Phase 3 — Reformulation prénoms</title>
+
+<style>
+  :root {
+    --bg: #0f1117; --surface: #1a1d27; --surface2: #22263a;
+    --accent: #6c8ebf; --accent2: #5cb85c; --warn: #f0ad4e; --danger: #d9534f;
+    --text: #e8eaf0; --muted: #8891a8; --border: #2e3350;
+    --font: 'Inter', system-ui, sans-serif; --mono: 'JetBrains Mono', monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font);
+         font-size: 14px; line-height: 1.6; }
+  .container { max-width: 1200px; margin: 0 auto; padding: 32px 24px; }
+  h1 { font-size: 22px; font-weight: 700; color: var(--accent); margin-bottom: 4px; }
+  h2 { font-size: 16px; font-weight: 600; color: var(--text); margin: 32px 0 16px;
+       border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+  h3 { font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase;
+       letter-spacing: .05em; margin: 20px 0 10px; }
+  .meta { color: var(--muted); font-size: 12px; margin-bottom: 28px; }
+  .grid { display: grid; gap: 16px; }
+  .grid-2 { grid-template-columns: 1fr 1fr; }
+  .grid-4 { grid-template-columns: repeat(4, 1fr); }
+  .card { background: var(--surface); border: 1px solid var(--border);
+          border-radius: 10px; padding: 18px; }
+  .kpi { text-align: center; }
+  .kpi .val { font-size: 32px; font-weight: 700; color: var(--accent); }
+  .kpi .lbl { font-size: 11px; color: var(--muted); text-transform: uppercase;
+              letter-spacing: .06em; margin-top: 4px; }
+  .kpi.good .val  { color: var(--accent2); }
+  .kpi.warn .val  { color: var(--warn); }
+  .kpi.bad  .val  { color: var(--danger); }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { background: var(--surface2); color: var(--muted); font-weight: 600;
+       font-size: 11px; text-transform: uppercase; letter-spacing: .05em;
+       padding: 8px 12px; text-align: left; }
+  td { padding: 8px 12px; border-bottom: 1px solid var(--border); }
+  tr:last-child td { border-bottom: none; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 99px;
+           font-size: 11px; font-weight: 600; }
+  .badge-good { background: #1d3a1d; color: var(--accent2); }
+  .badge-warn { background: #3a2e1d; color: var(--warn); }
+  .badge-bad  { background: #3a1d1d; color: var(--danger); }
+  .bar-wrap { background: var(--surface2); border-radius: 4px; height: 8px;
+              overflow: hidden; width: 100%; }
+  .bar-fill { height: 100%; border-radius: 4px; transition: width .3s; }
+  .hist-wrap { display: flex; align-items: flex-end; gap: 2px; height: 50px; margin-top: 6px; }
+  .hist-bar { background: var(--accent); opacity: .7; flex: 1; border-radius: 2px 2px 0 0;
+              min-height: 2px; }
+  .compare-pair { border: 1px solid var(--border); border-radius: 8px;
+                  margin-bottom: 12px; overflow: hidden; }
+  .compare-header { background: var(--surface2); padding: 8px 14px; font-size: 11px;
+                    color: var(--muted); display: flex; justify-content: space-between; }
+  .compare-body { display: grid; grid-template-columns: 1fr 1fr; }
+  .compare-col { padding: 12px 14px; font-size: 12px; line-height: 1.7; }
+  .compare-col:first-child { border-right: 1px solid var(--border); }
+  .compare-col-header { font-size: 10px; font-weight: 700; text-transform: uppercase;
+                        letter-spacing: .08em; color: var(--muted); margin-bottom: 6px; }
+  .tabs { display: flex; gap: 4px; margin-bottom: 16px; flex-wrap: wrap; }
+  .tab { padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 12px;
+         font-weight: 600; border: 1px solid var(--border); background: var(--surface);
+         color: var(--muted); transition: all .15s; }
+  .tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+  .section-divider { height: 1px; background: var(--border); margin: 40px 0; }
+  .footnote { font-size: 11px; color: var(--muted); margin-top: 8px; }
+  canvas { max-width: 100%; }
+</style>
+
+</head>
+<body>
+<div class="container">
+  <h1>Rapport d'evaluation — Phase 3 Reformulation</h1>
+  <p class="meta">Genere le 2026-03-13 11:44 | 10,622 prenoms | 3,502 groupes | Modele : camembert2camembert_shared-finetuned-french-summarization &nbsp;|&nbsp; ROUGE : inactif (pip install rouge-score)</p>
+  
+<h2>1. Performance</h2>
+<div class="grid grid-4" style="margin-bottom:20px">
+  <div class="card kpi good">
+    <div class="val">100.0%</div>
+    <div class="lbl">Cache hit rate</div>
+  </div>
+  <div class="card kpi">
+    <div class="val">12,841</div>
+    <div class="lbl">Entrees cache</div>
+  </div>
+  <div class="card kpi">
+    <div class="val">23,855</div>
+    <div class="lbl">Appels modele evites</div>
+  </div>
+  <div class="card kpi good">
+    <div class="val">9.9h</div>
+    <div class="lbl">Temps economise (est.)</div>
+  </div>
+</div>
+<div class="card">
+<h3>Distribution des longueurs de texte source (chars) par champ</h3>
+<table>
+<thead><tr>
+  <th>Champ</th><th>N</th><th>Moyenne</th><th>Mediane</th>
+  <th>P90</th><th>Max</th><th>% > 1800 chars</th>
+</tr></thead><tbody>
+<tr>
+  <td><strong>etymologie</strong></td>
+  <td>6,152</td>
+  <td>81</td>
+  <td>49</td>
+  <td>152</td>
+  <td>1102</td>
+  <td>0.0%</td>
+</tr>
+<tr>
+  <td><strong>provenance</strong></td>
+  <td>7,644</td>
+  <td>83</td>
+  <td>81</td>
+  <td>117</td>
+  <td>930</td>
+  <td>0.0%</td>
+</tr>
+<tr>
+  <td><strong>histoire</strong></td>
+  <td>8,387</td>
+  <td>367</td>
+  <td>343</td>
+  <td>475</td>
+  <td>2270</td>
+  <td>0.0%</td>
+</tr>
+<tr>
+  <td><strong>signification</strong></td>
+  <td>1,672</td>
+  <td>762</td>
+  <td>732</td>
+  <td>1018</td>
+  <td>2667</td>
+  <td>0.2%</td>
+</tr></tbody></table>
+<p class="footnote">Textes > 1800 chars : segmentes en blocs par _segmenter() avant generation.</p>
+</div>
+  <div class="section-divider"></div>
+  
+<h2>2. Qualite linguistique</h2>
+<div class="card">
+<table>
+<thead><tr>
+  <th>Champ</th>
+  <th>Flesch-FR moy</th><th>Flesch-FR med</th>
+  <th>Bien forme %</th>
+  <th>Repetitions tg moy %</th><th>Repetitions tg P90 %</th>
+</tr></thead><tbody>
+<tr>
+  <td><strong>etymologie</strong></td>
+  <td><span class="badge badge-bad">29.7</span></td>
+  <td>32.1</td>
+  <td><span class="badge badge-good">99.9%</span></td>
+  <td><span class="badge badge-good">0.00%</span></td>
+  <td>0.00%</td>
+</tr>
+<tr>
+  <td><strong>provenance</strong></td>
+  <td><span class="badge badge-warn">41.1</span></td>
+  <td>47.1</td>
+  <td><span class="badge badge-good">100.0%</span></td>
+  <td><span class="badge badge-good">0.00%</span></td>
+  <td>0.00%</td>
+</tr>
+<tr>
+  <td><strong>histoire</strong></td>
+  <td><span class="badge badge-bad">36.2</span></td>
+  <td>38.7</td>
+  <td><span class="badge badge-good">99.2%</span></td>
+  <td><span class="badge badge-good">0.00%</span></td>
+  <td>0.00%</td>
+</tr>
+<tr>
+  <td><strong>signification</strong></td>
+  <td><span class="badge badge-bad">29.9</span></td>
+  <td>30.4</td>
+  <td><span class="badge badge-good">99.9%</span></td>
+  <td><span class="badge badge-good">0.02%</span></td>
+  <td>0.00%</td>
+</tr></tbody></table>
+<p class="footnote">
+  Flesch-FR : formule Kandel-Moles — &gt;65 lisible, 40-65 moyen, &lt;40 difficile.<br>
+  Bien forme : majuscule initiale + ponctuation finale (.!?).<br>
+  Repetitions trigrammes : taux de trigrammes apparaissant &ge;3 fois — signal du mode greedy.
+</p>
+</div>
+  <div class="section-divider"></div>
+  <h2>3. Diversification</h2><div class="card"><table>
+<thead><tr>
+  <th>Champ</th>
+  <th>Sim cosine moy</th><th>Distribution sim</th>
+  <th>ROUGE-1 recall</th><th>ROUGE-L recall</th>
+  <th>Ratio longueur</th><th>Taux repli</th><th>N paires</th>
+</tr></thead><tbody>
+<tr>
+  <td><strong>etymologie</strong></td>
+  <td><span class="badge badge-bad">1.000</span></td>
+  <td style="min-width:100px"><div class="hist-wrap"><div class="hist-bar" style="height:0%" title="0"></div><div class="hist-bar" style="height:0%" title="0"></div><div class="hist-bar" style="height:0%" title="0"></div><div class="hist-bar" style="height:0%" title="0"></div><div class="hist-bar" style="height:0%" title="0"></div><div class="hist-bar" style="height:0%" title="0"></div><div class="hist-bar" style="height:0%" title="0"></div><div class="hist-bar" style="height:0%" title="0"></div><div class="hist-bar" style="height:0%" title="0"></div><div class="hist-bar" style="height:100%" title="3459"></div></div><div style="font-size:10px;color:var(--muted);margin-top:2px">0 → 1</div></td>
+  <td>n/a</td>
+  <td>n/a</td>
+  <td>1.00</td>
+  <td><span class="badge badge-bad">100.0%</span></td>
+  <td>6,152</td>
+</tr>
+<tr>
+  <td><strong>provenance</strong></td>
+  <td><span class="badge badge-bad">1.000</span></td>
+  <td style="min-width:100px"><div class="hist-wrap"><div class="hist-bar" style="height:0%" title="0"></div><div class="hist-bar" style="height:0%" title="0"></div><div class="hist-bar" style="height:0%" title="0"></div><div class="hist-bar" style="height:0%" title="0"></div><div class="hist-bar" style="height:0%" title="0"></div><div class="hist-bar" style="height:0%" title="0"></div><div class="hist-bar" style="height:0%" title="0"></div><div class="hist-bar" style="height:0%" title="0"></div><div class="hist-bar" style="height:0%" title="0"></div><div class="hist-bar" style="height:100%" title="3908"></div></div><div style="font-size:10px;color:var(--muted);margin-top:2px">0 → 1</div></td>
+  <td>n/a</td>
+  <td>n/a</td>
+  <td>1.00</td>
+  <td><span class="badge badge-bad">100.0%</span></td>
+  <td>7,644</td>
+</tr>
+<tr>
+  <td><strong>histoire</strong></td>
+  <td><span class="badge badge-bad">1.000</span></td>
+  <td style="min-width:100px"><div class="hist-wrap"><div class="hist-bar" style="height:0%" title="2"></div><div class="hist-bar" style="height:0%" title="0"></div><div class="hist-bar" style="height:0%" title="0"></div><div class="hist-bar" style="height:0%" title="0"></div><div class="hist-bar" style="height:0%" title="0"></div><div class="hist-bar" style="height:0%" title="0"></div><div class="hist-bar" style="height:0%" title="0"></div><div class="hist-bar" style="height:0%" title="0"></div><div class="hist-bar" style="height:0%" title="0"></div><div class="hist-bar" style="height:100%" title="3541"></div></div><div style="font-size:10px;color:var(--muted);margin-top:2px">0 → 1</div></td>
+  <td>n/a</td>
+  <td>n/a</td>
+  <td>1.00</td>
+  <td><span class="badge badge-bad">100.0%</span></td>
+  <td>8,387</td>
+</tr>
+<tr>
+  <td><strong>signification</strong></td>
+  <td><span class="badge badge-bad">1.000</span></td>
+  <td style="min-width:100px"><div class="hist-wrap"><div class="hist-bar" style="height:0%" title="0"></div><div class="hist-bar" style="height:0%" title="0"></div><div class="hist-bar" style="height:0%" title="0"></div><div class="hist-bar" style="height:0%" title="0"></div><div class="hist-bar" style="height:0%" title="0"></div><div class="hist-bar" style="height:0%" title="0"></div><div class="hist-bar" style="height:0%" title="0"></div><div class="hist-bar" style="height:0%" title="0"></div><div class="hist-bar" style="height:0%" title="0"></div><div class="hist-bar" style="height:100%" title="879"></div></div><div style="font-size:10px;color:var(--muted);margin-top:2px">0 → 1</div></td>
+  <td>n/a</td>
+  <td>n/a</td>
+  <td>1.00</td>
+  <td><span class="badge badge-bad">100.0%</span></td>
+  <td>1,672</td>
+</tr></tbody></table>
+<p class="footnote">
+  Sim cosine TF-IDF : &lt;0.70 = bonne diversification, &gt;0.97 = repli sur source.<br>
+  ROUGE recall : proportion du source conservée dans le reformulé — &lt;0.6 indique sur-compression.<br>
+  Ratio longueur : reformulé / source — &lt;1.0 = compression, &gt;1.0 = expansion.
+</p></div>
+  <div class="section-divider"></div>
+  
+<h2>4. Couverture</h2>
+<div class="grid grid-2">
+<div class="card">
+<h3>Taux de renseignement par champ</h3>
+<table>
+<thead><tr><th>Champ</th><th>Source %</th><th>Reformule %</th><th>Delta</th></tr></thead>
+<tbody>
+<tr>
+  <td><strong>etymologie</strong></td>
+  <td>57.9%</td>
+  <td>57.9%</td>
+  <td style="color:var(--accent2)">+0.0%</td>
+</tr>
+<tr>
+  <td><strong>provenance</strong></td>
+  <td>72.0%</td>
+  <td>72.0%</td>
+  <td style="color:var(--accent2)">+0.0%</td>
+</tr>
+<tr>
+  <td><strong>histoire</strong></td>
+  <td>79.0%</td>
+  <td>79.0%</td>
+  <td style="color:var(--accent2)">+0.0%</td>
+</tr>
+<tr>
+  <td><strong>signification</strong></td>
+  <td>15.7%</td>
+  <td>15.7%</td>
+  <td style="color:var(--accent2)">+0.0%</td>
+</tr></tbody></table></div>
+<div class="card">
+<h3>Synthese</h3>
+<table>
+<tbody>
+<tr><td>Prenoms total</td><td><strong>10,622</strong></td></tr>
+<tr><td>Groupes total</td><td><strong>3,502</strong></td></tr>
+<tr><td>Outliers Phase 2</td><td><strong>0</strong></td></tr>
+</tbody></table>
+<h3 style="margin-top:16px">Distribution tailles groupes</h3>
+<table><thead><tr><th>Taille</th><th>N groupes</th><th>Proportion</th></tr></thead><tbody>
+<tr>
+  <td>1</td>
+  <td>2164</td>
+  <td><div class="bar-wrap"><div class="bar-fill" style="width:20.4%;background:var(--accent)"></div></div> 20.4%</td>
+</tr>
+<tr>
+  <td>2</td>
+  <td>1063</td>
+  <td><div class="bar-wrap"><div class="bar-fill" style="width:10.0%;background:var(--accent)"></div></div> 10.0%</td>
+</tr>
+<tr>
+  <td>3</td>
+  <td>667</td>
+  <td><div class="bar-wrap"><div class="bar-fill" style="width:6.3%;background:var(--accent)"></div></div> 6.3%</td>
+</tr>
+<tr>
+  <td>4</td>
+  <td>615</td>
+  <td><div class="bar-wrap"><div class="bar-fill" style="width:5.8%;background:var(--accent)"></div></div> 5.8%</td>
+</tr>
+<tr>
+  <td>5</td>
+  <td>481</td>
+  <td><div class="bar-wrap"><div class="bar-fill" style="width:4.5%;background:var(--accent)"></div></div> 4.5%</td>
+</tr>
+<tr>
+  <td>6</td>
+  <td>351</td>
+  <td><div class="bar-wrap"><div class="bar-fill" style="width:3.3%;background:var(--accent)"></div></div> 3.3%</td>
+</tr>
+<tr>
+  <td>7</td>
+  <td>335</td>
+  <td><div class="bar-wrap"><div class="bar-fill" style="width:3.2%;background:var(--accent)"></div></div> 3.2%</td>
+</tr>
+<tr>
+  <td>8</td>
+  <td>311</td>
+  <td><div class="bar-wrap"><div class="bar-fill" style="width:2.9%;background:var(--accent)"></div></div> 2.9%</td>
+</tr>
+<tr>
+  <td>9</td>
+  <td>261</td>
+  <td><div class="bar-wrap"><div class="bar-fill" style="width:2.5%;background:var(--accent)"></div></div> 2.5%</td>
+</tr>
+<tr>
+  <td>10</td>
+  <td>198</td>
+  <td><div class="bar-wrap"><div class="bar-fill" style="width:1.9%;background:var(--accent)"></div></div> 1.9%</td>
+</tr>
+<tr>
+  <td>11</td>
+  <td>208</td>
+  <td><div class="bar-wrap"><div class="bar-fill" style="width:2.0%;background:var(--accent)"></div></div> 2.0%</td>
+</tr>
+<tr>
+  <td>12</td>
+  <td>156</td>
+  <td><div class="bar-wrap"><div class="bar-fill" style="width:1.5%;background:var(--accent)"></div></div> 1.5%</td>
+</tr>
+<tr>
+  <td>13</td>
+  <td>168</td>
+  <td><div class="bar-wrap"><div class="bar-fill" style="width:1.6%;background:var(--accent)"></div></div> 1.6%</td>
+</tr>
+<tr>
+  <td>14</td>
+  <td>140</td>
+  <td><div class="bar-wrap"><div class="bar-fill" style="width:1.3%;background:var(--accent)"></div></div> 1.3%</td>
+</tr>
+<tr>
+  <td>15</td>
+  <td>150</td>
+  <td><div class="bar-wrap"><div class="bar-fill" style="width:1.4%;background:var(--accent)"></div></div> 1.4%</td>
+</tr><tr><td colspan='3' style='color:var(--muted);font-style:italic'>... 31 autres tailles</td></tr></tbody></table></div></div>
+  <div class="section-divider"></div>
+  <h2>5. Comparatifs source / reformule</h2><div class="tabs"><div class="tab active" data-group="comp" data-tab="tab_comp_etymologie" onclick="showTab('comp','tab_comp_etymologie')">etymologie</div><div class="tab " data-group="comp" data-tab="tab_comp_provenance" onclick="showTab('comp','tab_comp_provenance')">provenance</div><div class="tab " data-group="comp" data-tab="tab_comp_histoire" onclick="showTab('comp','tab_comp_histoire')">histoire</div><div class="tab " data-group="comp" data-tab="tab_comp_signification" onclick="showTab('comp','tab_comp_signification')">signification</div></div><div id="tab_comp_etymologie" class="tab-panel active" data-group="comp">
+<div class="compare-pair">
+  <div class="compare-header">
+    <span><strong>c4d09793</strong> — etymologie</span>
+    <span>
+      <span class="badge badge-good">Bonne diversification</span>
+      &nbsp; sim cosine = 1.0
+    </span>
+  </div>
+  <div class="compare-body">
+    <div class="compare-col">
+      <div class="compare-col-header">Source</div>
+      égyptienne ou hébraïque, cf Marie, et latine : de fortuna, chance. – Originaire de Veroli, en Italie, Anne-Félix Viti entre au couvent de sa ville natale et y demeure plus de soixante-dix ans, jusqu'à sa mort, le 20 novembre 1922. Si Marie-Fortunée n'a pas choisi son nom de religion, elle le porte bien : "Elle a Dieu, elle a tout" aurait dit Thérèse d'Avila. Elle aime répéter le psaume 15 : "Seigneur, tu es le lot de mon cœur, tu es mon héritage", ainsi que le Magnificat, la prière des humbles. Toute la longue vie de Marie-Fortunée est un message d'humilité. "Elle nous invite à réfléchir à l'exigence paradoxale de la vie chrétienne fondée sur une conscience convaincue de sa propre nullité et sur l'application pratique de cette conscience dans le jugement que le chrétien doit porter sur soi : colloque accusateur de sa propre misère auquel la présence de Dieu l'appelle, colloque de la sincérité suprême et de la nécessité absolue de la miséricorde divine", dit Paul VI en la proclamant bienheureuse en 1967. fêtes : 20 novembre.
+    </div>
+    <div class="compare-col">
+      <div class="compare-col-header">Reformule</div>
+      Égyptienne ou hébraïque, cf Marie, et latine : de fortuna, chance. – Originaire de Veroli, en Italie, Anne-Félix Viti entre au couvent de sa ville natale et y demeure plus de soixante-dix ans, jusqu'à sa mort, le 20 novembre 1922. Si Marie-Fortunée n'a pas choisi son nom de religion, elle le porte bien : "Elle a Dieu, elle a tout" aurait dit Thérèse d'Avila. Elle aime répéter le psaume 15 : "Seigneur, tu es le lot de mon cœur, tu es mon héritage", ainsi que le Magnificat, la prière des humbles. Toute la longue vie de Marie-Fortunée est un message d'humilité. "Elle nous invite à réfléchir à l'exigence paradoxale de la vie chrétienne fondée sur une conscience convaincue de sa propre nullité et sur l'application pratique de cette conscience dans le jugement que le chrétien doit porter sur soi : colloque accusateur de sa propre misère auquel la présence de Dieu l'appelle, colloque de la sincérité suprême et de la nécessité absolue de la miséricorde divine", dit Paul VI en la proclamant bienheureuse en 1967. fêtes : 20 novembre.
+    </div>
+  </div>
+</div>
+<div class="compare-pair">
+  <div class="compare-header">
+    <span><strong>5b2c9fce</strong> — etymologie</span>
+    <span>
+      <span class="badge badge-good">Bonne diversification</span>
+      &nbsp; sim cosine = 1.0
+    </span>
+  </div>
+  <div class="compare-body">
+    <div class="compare-col">
+      <div class="compare-col-header">Source</div>
+      très controversée, peut-être égyptienne (de mry, aimer), peut-être hébraïque : de Myriam, un prénom qui évoque l'enthousiasme : Myriam, la sœur de Moïse, a le don de communiquer le bonheur par la poésie, le chant et la danse; après le passage de la Mer Rouge elle entraîne tous les hébreux dans une joie festive, une sorte de liturgie d'action de grâce, comme un magnificat, en reconnaissance des merveilles de Dieu. Interprétation plus traditionnelle : Myriam ou Miryam est formé de mîr, myrrhe, le symbole biblique de l'amour, le parfum de ceux qui s'aiment d'un amour fort et pur ( cf Ct 5), et de yâm, océan. Selon les auteurs, le nom signifie aussi "souveraine", "illuminatrice", "celle qui a été élevée", ..grecque : de agellos, messager.
+    </div>
+    <div class="compare-col">
+      <div class="compare-col-header">Reformule</div>
+      Très controversée, peut-être égyptienne (de mry, aimer), peut-être hébraïque : de Myriam, un prénom qui évoque l'enthousiasme : Myriam, la sœur de Moïse, a le don de communiquer le bonheur par la poésie, le chant et la danse; après le passage de la Mer Rouge elle entraîne tous les hébreux dans une joie festive, une sorte de liturgie d'action de grâce, comme un magnificat, en reconnaissance des merveilles de Dieu. Interprétation plus traditionnelle : Myriam ou Miryam est formé de mîr, myrrhe, le symbole biblique de l'amour, le parfum de ceux qui s'aiment d'un amour fort et pur ( cf Ct 5), et de yâm, océan. Selon les auteurs, le nom signifie aussi "souveraine", "illuminatrice", "celle qui a été élevée", ..grecque : de agellos, messager.
+    </div>
+  </div>
+</div>
+<div class="compare-pair">
+  <div class="compare-header">
+    <span><strong>bb485e7d</strong> — etymologie</span>
+    <span>
+      <span class="badge badge-good">Bonne diversification</span>
+      &nbsp; sim cosine = 1.0
+    </span>
+  </div>
+  <div class="compare-body">
+    <div class="compare-col">
+      <div class="compare-col-header">Source</div>
+      latine : de honoris, honneur. – À Verceil, en Piémont, Honorat partage les soucis, le labeur mais aussi les joies du saint évêque Eusèbe. Vers 355, il l'accompagne en exil et partage sa captivité en Palestine, puis en Cappadoce et en Égypte. Rentré en Italie vers 361, il est sacré évêque et, à partir de 370, poursuit l'œuvre d'Eusèbe. En 397, Honorat assiste aux derniers moments de saint Ambroise à Milan, en Lombardie, puis il rentre à Verceil, dépense ses dernières forces et rejoint ses amis dans la lumière de Dieu. fêtes : 28 octobre.
+    </div>
+    <div class="compare-col">
+      <div class="compare-col-header">Reformule</div>
+      Latine : de honoris, honneur. – À Verceil, en Piémont, Honorat partage les soucis, le labeur mais aussi les joies du saint évêque Eusèbe. Vers 355, il l'accompagne en exil et partage sa captivité en Palestine, puis en Cappadoce et en Égypte. Rentré en Italie vers 361, il est sacré évêque et, à partir de 370, poursuit l'œuvre d'Eusèbe. En 397, Honorat assiste aux derniers moments de saint Ambroise à Milan, en Lombardie, puis il rentre à Verceil, dépense ses dernières forces et rejoint ses amis dans la lumière de Dieu. fêtes : 28 octobre.
+    </div>
+  </div>
+</div>
+<div class="compare-pair">
+  <div class="compare-header">
+    <span><strong>6f7e468a</strong> — etymologie</span>
+    <span>
+      <span class="badge badge-bad">Repli probable</span>
+      &nbsp; sim cosine = 1.0
+    </span>
+  </div>
+  <div class="compare-body">
+    <div class="compare-col">
+      <div class="compare-col-header">Source</div>
+      grecque : de katharos, pur.très controversée, peut-être égyptienne (de mry, aimer), peut-être hébraïque : de Myriam, un prénom qui évoque l'enthousiasme : Myriam, la sœur de Moïse, a le don de communiquer le bonheur par la poésie, le chant et la danse; après le passage de la Mer Rouge elle entraîne tous les hébreux dans une joie festive, une sorte de liturgie d'action de grâce, comme un magnificat, en reconnaissance des merveilles de Dieu. Interprétation plus traditionnelle : Myriam ou Miryam est formé de mîr, myrrhe, le symbole biblique de l'amour, le parfum de ceux qui s'aiment d'un amour fort et pur ( cf Ct 5), et de yâm, océan. Selon les auteurs, le nom signifie aussi "souveraine", "illuminatrice", "celle qui a été élevée", ..
+    </div>
+    <div class="compare-col">
+      <div class="compare-col-header">Reformule</div>
+      Grecque : de katharos, pur.très controversée, peut-être égyptienne (de mry, aimer), peut-être hébraïque : de Myriam, un prénom qui évoque l'enthousiasme : Myriam, la sœur de Moïse, a le don de communiquer le bonheur par la poésie, le chant et la danse; après le passage de la Mer Rouge elle entraîne tous les hébreux dans une joie festive, une sorte de liturgie d'action de grâce, comme un magnificat, en reconnaissance des merveilles de Dieu. Interprétation plus traditionnelle : Myriam ou Miryam est formé de mîr, myrrhe, le symbole biblique de l'amour, le parfum de ceux qui s'aiment d'un amour fort et pur ( cf Ct 5), et de yâm, océan. Selon les auteurs, le nom signifie aussi "souveraine", "illuminatrice", "celle qui a été élevée", ..
+    </div>
+  </div>
+</div>
+<div class="compare-pair">
+  <div class="compare-header">
+    <span><strong>d517febd</strong> — etymologie</span>
+    <span>
+      <span class="badge badge-bad">Repli probable</span>
+      &nbsp; sim cosine = 1.0
+    </span>
+  </div>
+  <div class="compare-body">
+    <div class="compare-col">
+      <div class="compare-col-header">Source</div>
+      hébraïque : de hannah, grâce.très controversée, peut-être égyptienne (de mry, aimer), peut-être hébraïque : de Myriam, un prénom qui évoque l'enthousiasme : Myriam, la sœur de Moïse, a le don de communiquer le bonheur par la poésie, le chant et la danse; après le passage de la Mer Rouge elle entraîne tous les hébreux dans une joie festive, une sorte de liturgie d'action de grâce, comme un magnificat, en reconnaissance des merveilles de Dieu. Interprétation plus traditionnelle : Myriam ou Miryam est formé de mîr, myrrhe, le symbole biblique de l'amour, le parfum de ceux qui s'aiment d'un amour fort et pur ( cf Ct 5), et de yâm, océan. Selon les auteurs, le nom signifie aussi "souveraine", "illuminatrice", "celle qui a été élevée", ..
+    </div>
+    <div class="compare-col">
+      <div class="compare-col-header">Reformule</div>
+      Hébraïque : de hannah, grâce.très controversée, peut-être égyptienne (de mry, aimer), peut-être hébraïque : de Myriam, un prénom qui évoque l'enthousiasme : Myriam, la sœur de Moïse, a le don de communiquer le bonheur par la poésie, le chant et la danse; après le passage de la Mer Rouge elle entraîne tous les hébreux dans une joie festive, une sorte de liturgie d'action de grâce, comme un magnificat, en reconnaissance des merveilles de Dieu. Interprétation plus traditionnelle : Myriam ou Miryam est formé de mîr, myrrhe, le symbole biblique de l'amour, le parfum de ceux qui s'aiment d'un amour fort et pur ( cf Ct 5), et de yâm, océan. Selon les auteurs, le nom signifie aussi "souveraine", "illuminatrice", "celle qui a été élevée", ..
+    </div>
+  </div>
+</div></div><div id="tab_comp_provenance" class="tab-panel " data-group="comp">
+<div class="compare-pair">
+  <div class="compare-header">
+    <span><strong>9773bf40</strong> — provenance</span>
+    <span>
+      <span class="badge badge-good">Bonne diversification</span>
+      &nbsp; sim cosine = 1.0
+    </span>
+  </div>
+  <div class="compare-body">
+    <div class="compare-col">
+      <div class="compare-col-header">Source</div>
+      Le prénom Élia puise ses origines dans les prénoms hébreux Élie ou Éliya. L'expression "Elyaou" peut se traduire par "Dieu est Yahvé" en hébreu. Élia est néanmoins considéré comme un prénom féminin. Depuis les années 1990, sa popularité est croissante en France, avec 300 naissances en 2015.
+    </div>
+    <div class="compare-col">
+      <div class="compare-col-header">Reformule</div>
+      Le prénom Élia puise ses origines dans les prénoms hébreux Élie ou Éliya. L'expression "Elyaou" peut se traduire par "Dieu est Yahvé" en hébreu. Élia est néanmoins considéré comme un prénom féminin. Depuis les années 1990, sa popularité est croissante en France, avec 300 naissances en 2015.
+    </div>
+  </div>
+</div>
+<div class="compare-pair">
+  <div class="compare-header">
+    <span><strong>b3e727b4</strong> — provenance</span>
+    <span>
+      <span class="badge badge-good">Bonne diversification</span>
+      &nbsp; sim cosine = 1.0
+    </span>
+  </div>
+  <div class="compare-body">
+    <div class="compare-col">
+      <div class="compare-col-header">Source</div>
+      Diminutif de Stanislas. Vient du slave "stan et slaw" Signifie : "se dresser et gloire" Se fête le 11 avril.
+    </div>
+    <div class="compare-col">
+      <div class="compare-col-header">Reformule</div>
+      Diminutif de Stanislas. Vient du slave "stan et slaw" Signifie : "se dresser et gloire" Se fête le 11 avril.
+    </div>
+  </div>
+</div>
+<div class="compare-pair">
+  <div class="compare-header">
+    <span><strong>1c80288f</strong> — provenance</span>
+    <span>
+      <span class="badge badge-good">Bonne diversification</span>
+      &nbsp; sim cosine = 1.0
+    </span>
+  </div>
+  <div class="compare-body">
+    <div class="compare-col">
+      <div class="compare-col-header">Source</div>
+      Vient de l'hébreu "Sîdôn" Signifie : "originaire de Sidon" Aujourd'hui Saïda, au Liban. Se fête le 14 novembre.
+    </div>
+    <div class="compare-col">
+      <div class="compare-col-header">Reformule</div>
+      Vient de l'hébreu "Sîdôn" Signifie : "originaire de Sidon" Aujourd'hui Saïda, au Liban. Se fête le 14 novembre.
+    </div>
+  </div>
+</div>
+<div class="compare-pair">
+  <div class="compare-header">
+    <span><strong>21cb4e4b</strong> — provenance</span>
+    <span>
+      <span class="badge badge-bad">Repli probable</span>
+      &nbsp; sim cosine = 1.0
+    </span>
+  </div>
+  <div class="compare-body">
+    <div class="compare-col">
+      <div class="compare-col-header">Source</div>
+      Les racines du prénom Dana sont vastes, mais tout porte à croire qu’il est d’origine hébraïque. Ce prénom est très présent dans la topographie européenne. On peut noter par exemple le Danube, fleuve dont le nom serait tiré du latin Danavius. Dans la mythologie celtique irlandaise, Dana est la déesse primordiale des Tuatha Dé Danann, c'est-à-dire des dieux des Celtes avant l’apparition du christianisme sur l’île. En Inde, les Dânapati sont les bienfaiteurs des monastères bouddhiques. Dana désigne le don et l’aumône. Dans la toponymie irlandaise, Dana est associé à deux collines the Paps, situées près de Killarney. Ces collines ont la forme d’une paire de seins. En gaélique, on les appelle Dé Chich Anann ou les seins d'Ana. Dans la mythologie grecque, Danaé est la princesse d'Argos enfermée dans une tour d'airain, dont Zeus tomba amoureux. Métamorphosé en pluie d'or, le dieu la séduit et en fit la mère du héros Persée.
+    </div>
+    <div class="compare-col">
+      <div class="compare-col-header">Reformule</div>
+      Les racines du prénom Dana sont vastes, mais tout porte à croire qu’il est d’origine hébraïque. Ce prénom est très présent dans la topographie européenne. On peut noter par exemple le Danube, fleuve dont le nom serait tiré du latin Danavius. Dans la mythologie celtique irlandaise, Dana est la déesse primordiale des Tuatha Dé Danann, c'est-à-dire des dieux des Celtes avant l’apparition du christianisme sur l’île. En Inde, les Dânapati sont les bienfaiteurs des monastères bouddhiques. Dana désigne le don et l’aumône. Dans la toponymie irlandaise, Dana est associé à deux collines the Paps, situées près de Killarney. Ces collines ont la forme d’une paire de seins. En gaélique, on les appelle Dé Chich Anann ou les seins d'Ana. Dans la mythologie grecque, Danaé est la princesse d'Argos enfermée dans une tour d'airain, dont Zeus tomba amoureux. Métamorphosé en pluie d'or, le dieu la séduit et en fit la mère du héros Persée.
+    </div>
+  </div>
+</div>
+<div class="compare-pair">
+  <div class="compare-header">
+    <span><strong>703f88e8</strong> — provenance</span>
+    <span>
+      <span class="badge badge-bad">Repli probable</span>
+      &nbsp; sim cosine = 1.0
+    </span>
+  </div>
+  <div class="compare-body">
+    <div class="compare-col">
+      <div class="compare-col-header">Source</div>
+      Smaïl est un prénom populaire en Algérie. Il vient du prénom hébreu Ismaël qui signifie "Dieu a entendu" sous-entendu "Dieu a entendu ma demande". Dans les récits coraniques, Mahomet se considère comme le descendant d'Ismaël.
+    </div>
+    <div class="compare-col">
+      <div class="compare-col-header">Reformule</div>
+      Smaïl est un prénom populaire en Algérie. Il vient du prénom hébreu Ismaël qui signifie "Dieu a entendu" sous-entendu "Dieu a entendu ma demande". Dans les récits coraniques, Mahomet se considère comme le descendant d'Ismaël.
+    </div>
+  </div>
+</div></div><div id="tab_comp_histoire" class="tab-panel " data-group="comp">
+<div class="compare-pair">
+  <div class="compare-header">
+    <span><strong>30aa0a86</strong> — histoire</span>
+    <span>
+      <span class="badge badge-good">Bonne diversification</span>
+      &nbsp; sim cosine = 1.0
+    </span>
+  </div>
+  <div class="compare-body">
+    <div class="compare-col">
+      <div class="compare-col-header">Source</div>
+      Moine franciscain, saint Didace (qu'on appelle aussi Diego) est l'un des grands saints thaumaturges espagnols. Né près de Séville, en Andalousie, vers 1400, il entre chez les frères mineurs et se dévoue toute sa vie à ses compagnons aux postes les plus divers. Cuisinier, jardinier, infirmier ou même supérieur de la communauté, bien que simple frère lai, il sert là où Dieu le veut, convertit de nombreux païens et infidèles dans l'île Fuerteventura, Canaries, travaille aux champs dans des conditions héroïques pour ravitailler la population victime de la famine À Rome pour la canonisation de Bernardin de Sienne, en 1450, Didace fait des prodiges pour nourrir tous ses frères et soigner les malades au couvent de l'Ara Caeli. Mort à Alcala de Hénarès près de Madrid, le 12 novembre 1463, il attire de nombreux visiteurs, dont le roi de Castille, l'archevêque de Tolède, des rabbins juifs et des Maures, tous émerveillés par la bonne odeur qu'exhale son corps resté souple. En 1562, cent ans après son décès, Didace est retrouvé comme "endormi de la veille". Une étoffe appliquée sur son visage guérit don Carlos, le fils de Philippe II, blessé à la tête et mourant. Didace est canonisé par Sixte V en 1588.
+    </div>
+    <div class="compare-col">
+      <div class="compare-col-header">Reformule</div>
+      Moine franciscain, saint Didace (qu'on appelle aussi Diego) est l'un des grands saints thaumaturges espagnols. Né près de Séville, en Andalousie, vers 1400, il entre chez les frères mineurs et se dévoue toute sa vie à ses compagnons aux postes les plus divers. Cuisinier, jardinier, infirmier ou même supérieur de la communauté, bien que simple frère lai, il sert là où Dieu le veut, convertit de nombreux païens et infidèles dans l'île Fuerteventura, Canaries, travaille aux champs dans des conditions héroïques pour ravitailler la population victime de la famine À Rome pour la canonisation de Bernardin de Sienne, en 1450, Didace fait des prodiges pour nourrir tous ses frères et soigner les malades au couvent de l'Ara Caeli. Mort à Alcala de Hénarès près de Madrid, le 12 novembre 1463, il attire de nombreux visiteurs, dont le roi de Castille, l'archevêque de Tolède, des rabbins juifs et des Maures, tous émerveillés par la bonne odeur qu'exhale son corps resté souple. En 1562, cent ans après son décès, Didace est retrouvé comme "endormi de la veille". Une étoffe appliquée sur son visage guérit don Carlos, le fils de Philippe II, blessé à la tête et mourant. Didace est canonisé par Sixte V en 1588.
+    </div>
+  </div>
+</div>
+<div class="compare-pair">
+  <div class="compare-header">
+    <span><strong>396dede9</strong> — histoire</span>
+    <span>
+      <span class="badge badge-good">Bonne diversification</span>
+      &nbsp; sim cosine = 1.0
+    </span>
+  </div>
+  <div class="compare-body">
+    <div class="compare-col">
+      <div class="compare-col-header">Source</div>
+      Grec venu d'Asie Mineure, Pothin est le premier évêque de Lyon, en Gaule, au milieu du 2e s. Il a plus de 90 ans, selon la lettre des chrétiens lyonnais à leurs frères d'Asie, lorsqu'éclate la persécution de Marc Aurèle, en 177 : "Sa santé est fort ébranlée, il respire difficilement, mais il est réconforté par le souffle de l'Esprit-Saint. Son corps est miné par l'âge et la maladie mais l'âme veille en lui afin de lui assurer le triomphe du Christ lorsqu'il est traîné au tribunal. Les soldats le conduisent, accompagné des notables de la ville et d'une foule qui hurle comme s'il était le Christ en personne. Le vieillard rend un magnifique témoignage. Le gouverneur lui demande quel est le Dieu des chrétiens. L'évêque lui répond : "Tu le sauras quand tu en seras digne". Sur quoi on le roue de coups. Tous ceux qui peuvent l'approcher le frappent des poings et des pieds sans égard pour son âge; les autres lui jettent ce qui leur tombe sous la main." Ramené dans sa prison, Pothin expire deux jours après, assisté de quelques-uns des quarante-huit chrétiens destinés aux fauves à l'occasion des jeux qui doivent avoir lieu dans le grand amphithéâtre des trois Gaules.
+    </div>
+    <div class="compare-col">
+      <div class="compare-col-header">Reformule</div>
+      Grec venu d'Asie Mineure, Pothin est le premier évêque de Lyon, en Gaule, au milieu du 2e s. Il a plus de 90 ans, selon la lettre des chrétiens lyonnais à leurs frères d'Asie, lorsqu'éclate la persécution de Marc Aurèle, en 177 : "Sa santé est fort ébranlée, il respire difficilement, mais il est réconforté par le souffle de l'Esprit-Saint. Son corps est miné par l'âge et la maladie mais l'âme veille en lui afin de lui assurer le triomphe du Christ lorsqu'il est traîné au tribunal. Les soldats le conduisent, accompagné des notables de la ville et d'une foule qui hurle comme s'il était le Christ en personne. Le vieillard rend un magnifique témoignage. Le gouverneur lui demande quel est le Dieu des chrétiens. L'évêque lui répond : "Tu le sauras quand tu en seras digne". Sur quoi on le roue de coups. Tous ceux qui peuvent l'approcher le frappent des poings et des pieds sans égard pour son âge; les autres lui jettent ce qui leur tombe sous la main." Ramené dans sa prison, Pothin expire deux jours après, assisté de quelques-uns des quarante-huit chrétiens destinés aux fauves à l'occasion des jeux qui doivent avoir lieu dans le grand amphithéâtre des trois Gaules.
+    </div>
+  </div>
+</div>
+<div class="compare-pair">
+  <div class="compare-header">
+    <span><strong>b7019da0</strong> — histoire</span>
+    <span>
+      <span class="badge badge-good">Bonne diversification</span>
+      &nbsp; sim cosine = 1.0
+    </span>
+  </div>
+  <div class="compare-body">
+    <div class="compare-col">
+      <div class="compare-col-header">Source</div>
+      Onuphre est ermite dans la Thébaïde, la partie méridionale de la Haute-Égypte, à la fin du 4e s. Il n'a jamais coupé ses ongles, pas plus que ses cheveux et sa barbe, pendant soixante ans. Son aspect effrayant impressionne même les saints, comme Paphnuce, abbé de monastère, qui racontera par écrit sa rencontre avec l'anachorète : "Lorsque j'aperçois cet être velu, sans autre vêtement qu'une liane de feuillage autour des reins, je fais demi-tour, épouvanté. Mais lui m'appelle de sa voix très douce, me conduit à sa grotte et me parle de Dieu toute la nuit. À l'aube son visage change tout d'un coup. Il me dit qu'il va mourir et me remercie d'être venu lui donner la sépulture. Prosterné à mes pieds, il me demande de réciter sur lui les dernières prières. Ce que je fais. Onuphre mort, je l'enterre devant son ermitage".
+    </div>
+    <div class="compare-col">
+      <div class="compare-col-header">Reformule</div>
+      Onuphre est ermite dans la Thébaïde, la partie méridionale de la Haute-Égypte, à la fin du 4e s. Il n'a jamais coupé ses ongles, pas plus que ses cheveux et sa barbe, pendant soixante ans. Son aspect effrayant impressionne même les saints, comme Paphnuce, abbé de monastère, qui racontera par écrit sa rencontre avec l'anachorète : "Lorsque j'aperçois cet être velu, sans autre vêtement qu'une liane de feuillage autour des reins, je fais demi-tour, épouvanté. Mais lui m'appelle de sa voix très douce, me conduit à sa grotte et me parle de Dieu toute la nuit. À l'aube son visage change tout d'un coup. Il me dit qu'il va mourir et me remercie d'être venu lui donner la sépulture. Prosterné à mes pieds, il me demande de réciter sur lui les dernières prières. Ce que je fais. Onuphre mort, je l'enterre devant son ermitage".
+    </div>
+  </div>
+</div>
+<div class="compare-pair">
+  <div class="compare-header">
+    <span><strong>bf4a50f4</strong> — histoire</span>
+    <span>
+      <span class="badge badge-bad">Repli probable</span>
+      &nbsp; sim cosine = 1.0
+    </span>
+  </div>
+  <div class="compare-body">
+    <div class="compare-col">
+      <div class="compare-col-header">Source</div>
+      Originaire de Pabianice, Pologne, Raymond Kolbe prend le nom de Maximilien-Marie avec la bure chez les franciscains en 1910. Préoccupé par la montée de l'athéisme il décide d'utiliser la presse pour le combattre et, en 1922, fonde son premier journal, Le Chevalier de l'Immaculée, sous le patronage de Notre-Dame. Plusieurs titres suivent. À Grodno, puis à "Niepokalanow", le monastère-maison d'édition ultramoderne dont il est l'architecte et le constructeur, le père Kolbe dirige une douzaine de publications. Il va à Nagasaki, au Japon, pour y fonder une communauté de moines-imprimeurs et un journal. À Shanghai, il forme des missionnaires pour l'apostolat par l'édition. Patron de presse et maire d'une cité qu'il équipe encore d'un hôpital, de collèges et de stades, de chapelle et même d'un hôtel, Maximilien-Marie reste un moine humble, seulement préoccupé de la gloire de Dieu et du salut des âmes. Ce que les nazis n'apprécient nullement. Arrêté en février 1941, puis déporté à Auschwitz, il est affecté au bloc 14, d'où s'évade un prisonnier fin juillet. Sanction immédiate : dix otages sont pris au hasard, dix innocents voués au plus cruel supplice, le martyre de la faim et de la soif. Parmi ces hommes, François, père de famille. Maximilien-Marie sort du rang, rejoint l'officier, demande et obtient de prendre sa place. Alors commence la longue agonie dans le bunker de la mort. Mais la mission du moine n'est pas terminée. Il a sauvé le dixième condamné, il lui faut aider les neuf autres à mourir. Il les entraîne dans sa prière, prononce les mots qui réconfortent Stupéfaction des S.S. habitués aux gémissements et aux cris de désespoir : on chante des psaumes dans le bunker ! Le 14 août, veille de l'Assomption 1941, le geôlier trouve le père Kolbe "assis sur ses talons, la tête appuyée contre le mur et comme en extase, le visage clair et rayonnant". Il tend son bras pour la piqûre et meurt en priant pour ses bourreaux. Son corps est brûlé avec beaucoup d'autres dans l'un des fours qui fument nuit et jour dans le camp. Béatifié en 1971, il est déclaré "saint et martyr" par Jean-Paul II en 1982, en présence de François, père et grand-père qui vit toujours, de la vie-même de Maximilien-Marie.
+    </div>
+    <div class="compare-col">
+      <div class="compare-col-header">Reformule</div>
+      Originaire de Pabianice, Pologne, Raymond Kolbe prend le nom de Maximilien-Marie avec la bure chez les franciscains en 1910. Préoccupé par la montée de l'athéisme il décide d'utiliser la presse pour le combattre et, en 1922, fonde son premier journal, Le Chevalier de l'Immaculée, sous le patronage de Notre-Dame. Plusieurs titres suivent. À Grodno, puis à "Niepokalanow", le monastère-maison d'édition ultramoderne dont il est l'architecte et le constructeur, le père Kolbe dirige une douzaine de publications. Il va à Nagasaki, au Japon, pour y fonder une communauté de moines-imprimeurs et un journal. À Shanghai, il forme des missionnaires pour l'apostolat par l'édition. Patron de presse et maire d'une cité qu'il équipe encore d'un hôpital, de collèges et de stades, de chapelle et même d'un hôtel, Maximilien-Marie reste un moine humble, seulement préoccupé de la gloire de Dieu et du salut des âmes. Ce que les nazis n'apprécient nullement. Arrêté en février 1941, puis déporté à Auschwitz, il est affecté au bloc 14, d'où s'évade un prisonnier fin juillet. Sanction immédiate : dix otages sont pris au hasard, dix innocents voués au plus cruel supplice, le martyre de la faim et de la soif. Parmi ces hommes, François, père de famille. Maximilien-Marie sort du rang, rejoint l'officier, demande et obtient de prendre sa place. Alors commence la longue agonie dans le bunker de la mort. Mais la mission du moine n'est pas terminée. Il a sauvé le dixième condamné, il lui faut aider les neuf autres à mourir. Il les entraîne dans sa prière, prononce les mots qui réconfortent Stupéfaction des S.S. habitués aux gémissements et aux cris de désespoir : on chante des psaumes dans le bunker ! Le 14 août, veille de l'Assomption 1941, le geôlier trouve le père Kolbe "assis sur ses talons, la tête appuyée contre le mur et comme en extase, le visage clair et rayonnant". Il tend son bras pour la piqûre et meurt en priant pour ses bourreaux. Son corps est brûlé avec beaucoup d'autres dans l'un des fours qui fument nuit et jour dans le camp. Béatifié en 1971, il est déclaré "saint et martyr" par Jean-Paul II en 1982, en présence de François, père et grand-père qui vit toujours, de la vie-même de Maximilien-Marie.
+    </div>
+  </div>
+</div>
+<div class="compare-pair">
+  <div class="compare-header">
+    <span><strong>7dc6aeca</strong> — histoire</span>
+    <span>
+      <span class="badge badge-bad">Repli probable</span>
+      &nbsp; sim cosine = 1.0
+    </span>
+  </div>
+  <div class="compare-body">
+    <div class="compare-col">
+      <div class="compare-col-header">Source</div>
+      Né à l'ombre de l'abbaye de Wearmouth, à Durham, Angleterre, en 673, Bède est confié très jeune aux moines de la communauté que dirige saint Benoît Biscop. Sa scolarité achevée il passe à l'abbaye voisine de Jarrow où il est ordonné prêtre dans sa trentième année. Il écrit lui-même, trois ans avant sa mort : "J'ai passé toute ma vie dans le cloître, partageant mon temps entre l'étude de la sainte Écriture et la célébration de l'office divin. Tout mon bonheur a été d'étudier, d'enseigner et d'écrire." Saint Bède est un savant, un poète, un grammairien, un historien, un théologien et un exégète. Il est le père de l'histoire d'Angleterre et l'auteur du premier martyrologe historique. Son œuvre écrite est considérable et ses lettres sont parfois de véritables traités. Compilateur et vulgarisateur incomparable, il a introduit les Pères latins dans son pays et il est le premier auteur à avoir utilisé l'anglais. Le jour de sa mort, la veille de l'Ascension 735, il travaille encore à une traduction de l'évangile de saint Jean, couché sur le pavé de sa cellule. Ayant dicté le dernier verset du dernier chapitre, il se met à chanter "Gloire au Père, au Fils, au Saint-Esprit" et rend son âme à Dieu aussi paisiblement qu'il a vécu. Saint Bède, dit le Vénérable, est proclamé docteur de l'Église par Léon XIII en 1899.
+    </div>
+    <div class="compare-col">
+      <div class="compare-col-header">Reformule</div>
+      Né à l'ombre de l'abbaye de Wearmouth, à Durham, Angleterre, en 673, Bède est confié très jeune aux moines de la communauté que dirige saint Benoît Biscop. Sa scolarité achevée il passe à l'abbaye voisine de Jarrow où il est ordonné prêtre dans sa trentième année. Il écrit lui-même, trois ans avant sa mort : "J'ai passé toute ma vie dans le cloître, partageant mon temps entre l'étude de la sainte Écriture et la célébration de l'office divin. Tout mon bonheur a été d'étudier, d'enseigner et d'écrire." Saint Bède est un savant, un poète, un grammairien, un historien, un théologien et un exégète. Il est le père de l'histoire d'Angleterre et l'auteur du premier martyrologe historique. Son œuvre écrite est considérable et ses lettres sont parfois de véritables traités. Compilateur et vulgarisateur incomparable, il a introduit les Pères latins dans son pays et il est le premier auteur à avoir utilisé l'anglais. Le jour de sa mort, la veille de l'Ascension 735, il travaille encore à une traduction de l'évangile de saint Jean, couché sur le pavé de sa cellule. Ayant dicté le dernier verset du dernier chapitre, il se met à chanter "Gloire au Père, au Fils, au Saint-Esprit" et rend son âme à Dieu aussi paisiblement qu'il a vécu. Saint Bède, dit le Vénérable, est proclamé docteur de l'Église par Léon XIII en 1899.
+    </div>
+  </div>
+</div></div><div id="tab_comp_signification" class="tab-panel " data-group="comp">
+<div class="compare-pair">
+  <div class="compare-header">
+    <span><strong>115c1b7a</strong> — signification</span>
+    <span>
+      <span class="badge badge-good">Bonne diversification</span>
+      &nbsp; sim cosine = 1.0
+    </span>
+  </div>
+  <div class="compare-body">
+    <div class="compare-col">
+      <div class="compare-col-header">Source</div>
+      Adryen, plus communément orthographié « Adrien », est un prénom masculin issu de la culture latine. Il a également pour origine un toponyme de Vénétie, la ville d’Adria, dont s’inspire aussi celui de la mer Adriatique. Selon les sources linguistiques, Adryen dériverait du grec « Adrianos », lui-même issu de la ville vénitienne. Le nom de cette ville portuaire de Vénétie a été adopté par les parents de l’illustre empereur romain Hadrien ainsi que par une célèbre famille romaine. Souverain pacifique, Hadrien était à la fois philosophe et poète. Par la suite, ce prénom a été emprunté par le pape Adrien VI.Régulièrement attribué comme nom de baptême dans les pays chrétiens depuis cette époque, Adryen connaît un vif succès en 1980 pour atteindre son pic de popularité en 1991 avec 4 357 naissances. Figurant parmi les 100 premiers prénoms les plus attribués en France, il est actuellement porté par environ 104 000 garçons. 1349 nouveau-nés ont été prénommés Adryen en 2010 et 1 060 en 2013. L’âge moyen des Adryen est de 41 ans. Les dérivés de ce prénom sont nombreux : Aïden, Andriano, Andrian, Aurélien, Aodrenn, Audren, Andrien, Adrienne, Hadrien, Adriette, Adrian, Adria, Hadrien, Adrion, Adriano ou Adrian. Marc-Adrien, Charles-Adrien, Louis-Adrien, Jean-Adrien, Paul-Adrien ou Pierre-Adrien sont des prénoms composés d’Adryen. Parmi les personnages connus ayant porté le prénom Adryen ou Adrien, nous pouvons citer l’acteur américain Adrien Brody, le juriste et historien français Adrien Dansette, le marin belge Adrien de Gerlache de Gomery, le scénariste et réalisateur Gilles Adrien ou le champion de ski Adrien Théaux.
+    </div>
+    <div class="compare-col">
+      <div class="compare-col-header">Reformule</div>
+      Adryen, plus communément orthographié « Adrien », est un prénom masculin issu de la culture latine. Il a également pour origine un toponyme de Vénétie, la ville d’Adria, dont s’inspire aussi celui de la mer Adriatique. Selon les sources linguistiques, Adryen dériverait du grec « Adrianos », lui-même issu de la ville vénitienne. Le nom de cette ville portuaire de Vénétie a été adopté par les parents de l’illustre empereur romain Hadrien ainsi que par une célèbre famille romaine. Souverain pacifique, Hadrien était à la fois philosophe et poète. Par la suite, ce prénom a été emprunté par le pape Adrien VI.Régulièrement attribué comme nom de baptême dans les pays chrétiens depuis cette époque, Adryen connaît un vif succès en 1980 pour atteindre son pic de popularité en 1991 avec 4 357 naissances. Figurant parmi les 100 premiers prénoms les plus attribués en France, il est actuellement porté par environ 104 000 garçons. 1349 nouveau-nés ont été prénommés Adryen en 2010 et 1 060 en 2013. L’âge moyen des Adryen est de 41 ans. Les dérivés de ce prénom sont nombreux : Aïden, Andriano, Andrian, Aurélien, Aodrenn, Audren, Andrien, Adrienne, Hadrien, Adriette, Adrian, Adria, Hadrien, Adrion, Adriano ou Adrian. Marc-Adrien, Charles-Adrien, Louis-Adrien, Jean-Adrien, Paul-Adrien ou Pierre-Adrien sont des prénoms composés d’Adryen. Parmi les personnages connus ayant porté le prénom Adryen ou Adrien, nous pouvons citer l’acteur américain Adrien Brody, le juriste et historien français Adrien Dansette, le marin belge Adrien de Gerlache de Gomery, le scénariste et réalisateur Gilles Adrien ou le champion de ski Adrien Théaux.
+    </div>
+  </div>
+</div>
+<div class="compare-pair">
+  <div class="compare-header">
+    <span><strong>d97ad843</strong> — signification</span>
+    <span>
+      <span class="badge badge-good">Bonne diversification</span>
+      &nbsp; sim cosine = 1.0
+    </span>
+  </div>
+  <div class="compare-body">
+    <div class="compare-col">
+      <div class="compare-col-header">Source</div>
+      Le prénom Bilel émergea en France dans le courant des années 70 et entama immédiatement une ascension progressive dans les statistiques. Bien que sa cote de popularité soit en hausse, Bilel demeure néanmoins un prénom peu commun. Depuis le début du XXe siècle, un peu plus de 400 personnes ont été prénommées ainsi dans l’Hexagone. Dégageant une impression de puissance et un certain magnétisme, Bilel inspire facilement le respect et l’admiration de son entourage. Il se distingue par une énergie débordante qu'il utilise généralement de manière constructive. Bilel cherche toujours à se surpasser pour atteindre ses objectifs et réussir sa carrière. Bilal, Billel et Bilhel sont les variantes connues du prénom Bilel. De nombreuses célébrités sont ainsi prénommées, notamment les footballeurs tunisiens Bilel Ifa, Bilel Mohsni, Bilel Yaken et Bilel Ferchichi, le boxeur français Bilel Latreche, les acteurs tunisiens Bilel Slim et Bilel Briki, le handballeur tunisien Bilel Attig ainsi que le joueur de volley-ball tunisien Bilel Ben Hassine.
+    </div>
+    <div class="compare-col">
+      <div class="compare-col-header">Reformule</div>
+      Le prénom Bilel émergea en France dans le courant des années 70 et entama immédiatement une ascension progressive dans les statistiques. Bien que sa cote de popularité soit en hausse, Bilel demeure néanmoins un prénom peu commun. Depuis le début du XXe siècle, un peu plus de 400 personnes ont été prénommées ainsi dans l’Hexagone. Dégageant une impression de puissance et un certain magnétisme, Bilel inspire facilement le respect et l’admiration de son entourage. Il se distingue par une énergie débordante qu'il utilise généralement de manière constructive. Bilel cherche toujours à se surpasser pour atteindre ses objectifs et réussir sa carrière. Bilal, Billel et Bilhel sont les variantes connues du prénom Bilel. De nombreuses célébrités sont ainsi prénommées, notamment les footballeurs tunisiens Bilel Ifa, Bilel Mohsni, Bilel Yaken et Bilel Ferchichi, le boxeur français Bilel Latreche, les acteurs tunisiens Bilel Slim et Bilel Briki, le handballeur tunisien Bilel Attig ainsi que le joueur de volley-ball tunisien Bilel Ben Hassine.
+    </div>
+  </div>
+</div>
+<div class="compare-pair">
+  <div class="compare-header">
+    <span><strong>7ec62876</strong> — signification</span>
+    <span>
+      <span class="badge badge-good">Bonne diversification</span>
+      &nbsp; sim cosine = 1.0
+    </span>
+  </div>
+  <div class="compare-body">
+    <div class="compare-col">
+      <div class="compare-col-header">Source</div>
+      Emilien est un prénom couramment attribué en France. Classé 161e parmi les prénoms les plus appréciés dans l’Hexagone, il a une tendance en forte hausse et est particulièrement prisé dans le département du Nord. Emilien est une personne passionnée. Fougueux par moment, voire impatient, il a une ardeur inapaisable qui anime son enthousiasme et sa gaieté. Assez curieux, il aime se lancer dans des aventures de manière impulsive, ce qui parfois, peut lui jouer des tours. Ces impulsions, Emilien apprendra à les gérer, tout en gardant l’essence de sa personnalité. Emilyen, Emilian, Emile, Emiland, Emilio, Emilion et Emiljan sont des variantes du prénom Emilien. Ses équivalents féminins sont Emilienne et Emiliande. Parmi les célébrités portant ce prénom, on connaît le sculpteur Emilien de Nieuwerkerke, le dessinateur Emilien Frossard, les coureurs cyclistes Emilien Viennet et Emilien Benoît Bergès ou encore le musicien et chef d’orchestre Emilien Allard.
+    </div>
+    <div class="compare-col">
+      <div class="compare-col-header">Reformule</div>
+      Emilien est un prénom couramment attribué en France. Classé 161e parmi les prénoms les plus appréciés dans l’Hexagone, il a une tendance en forte hausse et est particulièrement prisé dans le département du Nord. Emilien est une personne passionnée. Fougueux par moment, voire impatient, il a une ardeur inapaisable qui anime son enthousiasme et sa gaieté. Assez curieux, il aime se lancer dans des aventures de manière impulsive, ce qui parfois, peut lui jouer des tours. Ces impulsions, Emilien apprendra à les gérer, tout en gardant l’essence de sa personnalité. Emilyen, Emilian, Emile, Emiland, Emilio, Emilion et Emiljan sont des variantes du prénom Emilien. Ses équivalents féminins sont Emilienne et Emiliande. Parmi les célébrités portant ce prénom, on connaît le sculpteur Emilien de Nieuwerkerke, le dessinateur Emilien Frossard, les coureurs cyclistes Emilien Viennet et Emilien Benoît Bergès ou encore le musicien et chef d’orchestre Emilien Allard.
+    </div>
+  </div>
+</div>
+<div class="compare-pair">
+  <div class="compare-header">
+    <span><strong>e2031979</strong> — signification</span>
+    <span>
+      <span class="badge badge-bad">Repli probable</span>
+      &nbsp; sim cosine = 1.0
+    </span>
+  </div>
+  <div class="compare-body">
+    <div class="compare-col">
+      <div class="compare-col-header">Source</div>
+      Assez rare en France, le prénom Charlene est apparu dans les années 1980. Régulièrement utilisé, il atteignit son apogée en 1990. Avec une tendance actuellement stable, Charlene est le 337e prénom le plus attribué dans l’Hexagone. Derrière le prénom Charlene se cache une femme débordante d’énergie, voire hyperactive. Ayant toujours envie de bouger, elle a besoin de s’occuper pour se sentir vivante et la paresse ne fait pas partie de son vocabulaire. À la fois charismatique et exigeante, Charlene est une personne sensible qui s’en sort très bien face aux situations assez compliquées. Carla, Carlotta, Charlaine, Charlette, Charlotte, Charline, Charlyne, Charlène, Lotta, Lotte, Lottie, Carole, Caroline et Cheryl sont les variantes connues du prénom Charlene. Plusieurs célébrités portent le prénom Charlene comme la princesse Charlène de Monaco, la chanteuse de RnB Charlene Marylinn d’Angelo, la chanteuse canadienne Charlene Choi, la journaliste américaine Charlene Cothran, l’actrice américaine Charlene Tilton, la sportive canadienne Charlene Wong ou l’héritière Charlene de Carvalho-Heineken.
+    </div>
+    <div class="compare-col">
+      <div class="compare-col-header">Reformule</div>
+      Assez rare en France, le prénom Charlene est apparu dans les années 1980. Régulièrement utilisé, il atteignit son apogée en 1990. Avec une tendance actuellement stable, Charlene est le 337e prénom le plus attribué dans l’Hexagone. Derrière le prénom Charlene se cache une femme débordante d’énergie, voire hyperactive. Ayant toujours envie de bouger, elle a besoin de s’occuper pour se sentir vivante et la paresse ne fait pas partie de son vocabulaire. À la fois charismatique et exigeante, Charlene est une personne sensible qui s’en sort très bien face aux situations assez compliquées. Carla, Carlotta, Charlaine, Charlette, Charlotte, Charline, Charlyne, Charlène, Lotta, Lotte, Lottie, Carole, Caroline et Cheryl sont les variantes connues du prénom Charlene. Plusieurs célébrités portent le prénom Charlene comme la princesse Charlène de Monaco, la chanteuse de RnB Charlene Marylinn d’Angelo, la chanteuse canadienne Charlene Choi, la journaliste américaine Charlene Cothran, l’actrice américaine Charlene Tilton, la sportive canadienne Charlene Wong ou l’héritière Charlene de Carvalho-Heineken.
+    </div>
+  </div>
+</div>
+<div class="compare-pair">
+  <div class="compare-header">
+    <span><strong>2f6f4c34</strong> — signification</span>
+    <span>
+      <span class="badge badge-bad">Repli probable</span>
+      &nbsp; sim cosine = 1.0
+    </span>
+  </div>
+  <div class="compare-body">
+    <div class="compare-col">
+      <div class="compare-col-header">Source</div>
+      Le prénom féminin Aminata fit son apparition en France vers le milieu des années 50. Connaissant une évolution constante dans les statistiques depuis les années 60, ce prénom enregistre actuellement une tendance stable. Depuis le début du XXe siècle, 5072 petites filles ont été ainsi prénommées dans l’Hexagone. De nature craintive, Aminata est une femme secrète et introvertie. Lorsqu’elle accorde sa confiance, elle n’éprouve aucun mal à communiquer et à dévoiler ses sentiments. Douce et charmante, Aminata attire la sympathie grâce à sa gentillesse et son amabilité. Profondément altruiste, elle se sent facilement affectée par la douleur des autres et n’hésite pas à tendre la main aux plus malheureux. Amina est l’unique variante connue du prénom Aminata. Parmi les célébrités prénommées ainsi se trouvent la chanteuse lettone Aminata Savadogo, la politicienne sénégalaise Aminata Touré, la joueuse de basket-ball sénégalaise Aminata Nar Diop, la comédienne sénégalaise Aminata Fall, la footballeuse française Aminata Diallo ainsi que la femme politique et écrivaine malienne Aminata Dramane.
+    </div>
+    <div class="compare-col">
+      <div class="compare-col-header">Reformule</div>
+      Le prénom féminin Aminata fit son apparition en France vers le milieu des années 50. Connaissant une évolution constante dans les statistiques depuis les années 60, ce prénom enregistre actuellement une tendance stable. Depuis le début du XXe siècle, 5072 petites filles ont été ainsi prénommées dans l’Hexagone. De nature craintive, Aminata est une femme secrète et introvertie. Lorsqu’elle accorde sa confiance, elle n’éprouve aucun mal à communiquer et à dévoiler ses sentiments. Douce et charmante, Aminata attire la sympathie grâce à sa gentillesse et son amabilité. Profondément altruiste, elle se sent facilement affectée par la douleur des autres et n’hésite pas à tendre la main aux plus malheureux. Amina est l’unique variante connue du prénom Aminata. Parmi les célébrités prénommées ainsi se trouvent la chanteuse lettone Aminata Savadogo, la politicienne sénégalaise Aminata Touré, la joueuse de basket-ball sénégalaise Aminata Nar Diop, la comédienne sénégalaise Aminata Fall, la footballeuse française Aminata Diallo ainsi que la femme politique et écrivaine malienne Aminata Dramane.
+    </div>
+  </div>
+</div></div>
+</div>
+
+<script>
+function showTab(groupId, tabId) {
+  document.querySelectorAll('[data-group="' + groupId + '"].tab-panel')
+    .forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('[data-group="' + groupId + '"].tab')
+    .forEach(t => t.classList.remove('active'));
+  document.getElementById(tabId).classList.add('active');
+  document.querySelector('[data-tab="' + tabId + '"]').classList.add('active');
+}
+</script>
+
+</body>
+</html>

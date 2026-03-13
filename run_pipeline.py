@@ -31,24 +31,24 @@ def print_header(title):
     print("="*50 + "\n")
 
 def run_script(folder, script_name):
-    cwd = os.path.join(ROOT_DIR, folder)
-    print(f"\n Lancement de : {script_name}...")
+    script_path = os.path.join(folder, script_name)
+    print(f"\n Lancement de : {script_path}...")
     try:
-        subprocess.run([sys.executable, script_name], cwd=cwd, check=True)
+        subprocess.run([sys.executable, script_path], cwd=ROOT_DIR, check=True)
         print(f"\n Terminé avec succès : {script_name}")
     except subprocess.CalledProcessError as e:
         print(f"\n Erreur d'exécution de {script_name} (Code {e.returncode})")
     input("\nAppuyez sur Entrée pour continuer...")
 
 def run_all(folder):
-    for script in PIPELINES[folder]:
-        cwd = os.path.join(ROOT_DIR, folder)
-        print(f"\n Lancement de : {script}...")
+    for script_name in PIPELINES[folder]:
+        script_path = os.path.join(folder, script_name)
+        print(f"\n Lancement de : {script_path}...")
         try:
-            subprocess.run([sys.executable, script], cwd=cwd, check=True)
-            print(f"Succès : {script}")
+            subprocess.run([sys.executable, script_path], cwd=ROOT_DIR, check=True)
+            print(f"Succès : {script_name}")
         except subprocess.CalledProcessError as e:
-            print(f"Erreur critique sur {script} (Code {e.returncode}). Arrêt du pipeline.")
+            print(f"Erreur critique sur {script_name} (Code {e.returncode}). Arrêt du pipeline.")
             break
     input("\nAppuyez sur Entrée pour continuer...")
 

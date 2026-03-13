@@ -127,6 +127,20 @@ STOPWORDS_LIES = {
 
 N_EVAL_PAIRES = 200
 
+# Cohésion de groupe — centroid + outliers
+# Avant toute fusion N2, sim(nouveau_membre, centroid_groupe) >= SEUIL_CENTROID.
+# Evite qu'un prénom s'accroche à un groupe via un seul pont FAISS résiduel.
+# Désactivé pour N1 : les liens éditoriaux sont absolus.
+SEUIL_CENTROID = 0.88
+
+# Après chaque fusion, les membres dont sim(emb, centroid) < SEUIL_OUTLIER
+# sont loggés comme outliers dans le fichier d'évaluation (pas d'exclusion).
+SEUIL_OUTLIER = 0.82
+
+# Taille maximale pour déclencher la vérification outlier post-fusion.
+# Au-delà le coût O(|G|) devient significatif — on plafonne.
+MAX_GROUPE_OUTLIER_CHECK = 30
+
 
 # ---------------------------------------------------------------------------
 # Union-Find
@@ -555,7 +569,16 @@ def log_stats(labels: np.ndarray):
     log.info("Top 5 groupes : %s", sizes.most_common(5))
 
 
-def generer_evaluation(data: list, labels: np.ndarray, n: int, path: str):
+def generer_evaluation(data: list, labels: np.ndarray,
+                       outliers_par_groupe: list, n: int, path: str):
+    """
+    Génère un fichier d'évaluation avec deux sections :
+      - paires aléatoires liées/non-liées pour évaluation manuelle
+      - liste des outliers détectés (prénoms dont sim centroid < SEUIL_OUTLIER)
+
+    Les outliers ne sont pas retirés des groupes — ils servent à l'inspection
+    qualité et au réglage fin des seuils.
+    """
     prenoms_list = [d["prenom"] for d in data]
     label_list   = labels.tolist()
     total        = len(label_list)
@@ -585,7 +608,7 @@ def generer_evaluation(data: list, labels: np.ndarray, n: int, path: str):
     echantillon = paires_liees + paires_non_liees
     random.shuffle(echantillon)
 
-    sortie = [
+    paires_sortie = [
         {
             "prenom_a": prenoms_list[a],
             "prenom_b": prenoms_list[b],
@@ -599,9 +622,153 @@ def generer_evaluation(data: list, labels: np.ndarray, n: int, path: str):
         for a, b, attendu in echantillon
     ]
 
+    # Outliers : groupés par groupe pour faciliter l'inspection
+    outliers_sortie = [
+        {
+            "groupe": int(racine),
+            "outliers": [{"prenom": p, "sim_centroid": s} for p, s in ol],
+        }
+        for racine, ol in sorted(outliers_par_groupe, key=lambda x: -len(x[1]))
+    ]
+
+    sortie = {
+        "paires_evaluation": paires_sortie,
+        "outliers":          outliers_sortie,
+        "seuil_outlier":     SEUIL_OUTLIER,
+        "seuil_centroid":    SEUIL_CENTROID,
+    }
+
     with open(path, "w", encoding="utf-8") as f:
         json.dump(sortie, f, ensure_ascii=False, indent=2)
-    log.info("Evaluation : %d paires -> %s", len(sortie), path)
+    log.info(
+        "Evaluation : %d paires + %d groupes avec outliers -> %s",
+        len(paires_sortie), len(outliers_sortie), path,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Gestion cohésion des groupes — centroid incrémental + détection outliers
+# ---------------------------------------------------------------------------
+
+class GestionGroupes:
+    """
+    Maintient le centroid L2-normalisé de chaque groupe et détecte les
+    outliers après chaque fusion.
+
+    Besoin : l'Union-Find fusionne par paires sans jamais vérifier la
+    cohérence globale du groupe résultant. Un prénom peut entrer dans un
+    groupe parce qu'il est proche d'un seul membre, même si l'ensemble
+    du groupe lui est sémantiquement étranger.
+
+    Centroid incrémental :
+        centroid_G += emb_i  puis renormalisé L2.
+        O(1) par fusion — pas de recalcul complet.
+        Approximation valide car les embeddings sont déjà L2-normalisés :
+        la moyenne renormalisée est un estimateur stable de la direction
+        centrale du groupe dans l'espace cosine.
+
+    Vérification outlier :
+        Après fusion, si |G| <= MAX_GROUPE_OUTLIER_CHECK, on calcule
+        sim(emb_k, centroid) pour chaque membre k. Les membres sous
+        SEUIL_OUTLIER sont signalés — pas retirés (Union-Find est irréversible).
+
+    Usage :
+        gg = GestionGroupes(embs, prenoms)
+        if gg.fusion_coherente(i, j, uf):
+            if uf.union(i, j):
+                gg.appliquer_fusion(i, j, uf)
+                outliers = gg.detecter_outliers(uf.find(i))
+    """
+
+    def __init__(self, embs: np.ndarray, prenoms: list):
+        n = embs.shape[0]
+        # centroids[i] = embedding normalisé du groupe dont i est la racine.
+        # Initialisé à l'embedding de chaque prénom (groupe singleton).
+        self.centroids  = {i: embs[i].copy() for i in range(n)}
+        # tailles[i] = nombre de membres du groupe de racine i.
+        self.tailles    = {i: 1 for i in range(n)}
+        # membres[i] = liste des indices appartenant au groupe de racine i.
+        self.membres    = {i: [i] for i in range(n)}
+        self.embs       = embs
+        self.prenoms    = prenoms
+
+    def _racine(self, uf: "UnionFind", i: int) -> int:
+        return uf.find(i)
+
+    def fusion_coherente(self, i: int, j: int, uf: "UnionFind") -> bool:
+        """
+        Retourne True si i peut rejoindre le groupe de j (et vice-versa)
+        sans violer le seuil de cohésion centroid.
+
+        Les deux directions sont vérifiées :
+          - sim(emb_i, centroid_Gj) >= SEUIL_CENTROID
+          - sim(emb_j, centroid_Gi) >= SEUIL_CENTROID
+
+        Pour les groupes singletons (taille=1), le centroid est l'embedding
+        lui-même — la vérification revient au score FAISS déjà calculé,
+        donc toujours True dans ce cas.
+        """
+        ri, rj = self._racine(uf, i), self._racine(uf, j)
+        if ri == rj:
+            return False
+
+        ci = self.centroids[ri]
+        cj = self.centroids[rj]
+
+        sim_i_vers_j = float(np.dot(self.embs[i], cj))
+        sim_j_vers_i = float(np.dot(self.embs[j], ci))
+
+        return sim_i_vers_j >= SEUIL_CENTROID and sim_j_vers_i >= SEUIL_CENTROID
+
+    def appliquer_fusion(self, i: int, j: int, uf: "UnionFind"):
+        """
+        Met à jour le centroid et la liste des membres après une fusion
+        effective (à appeler après uf.union()).
+
+        La nouvelle racine est déterminée par uf.find() post-union.
+        Le centroid est recalculé comme moyenne des deux centroids pondérée
+        par les tailles, puis renormalisé L2.
+        """
+        racine = self._racine(uf, i)  # racine après union
+        ri_old = self._racine(uf, i)  # même chose, racine finale
+        # Identifier quelle était l'ancienne racine de chaque côté
+        # On ne peut plus distinguer après union — on recalcule depuis les membres
+        membres_i = self.membres.get(uf.find(i), [])
+        membres_j = self.membres.get(uf.find(j), [])
+
+        # Fusion des listes membres
+        tous = list(set(membres_i) | set(membres_j) | {i, j})
+        self.membres[racine] = tous
+        self.tailles[racine] = len(tous)
+
+        # Centroid = moyenne des embeddings membres, renormalisée
+        centroid = np.mean(self.embs[tous], axis=0)
+        norme = np.linalg.norm(centroid)
+        if norme > 1e-9:
+            centroid /= norme
+        self.centroids[racine] = centroid
+
+    def detecter_outliers(self, racine: int) -> list:
+        """
+        Retourne la liste des prénoms dont sim(emb, centroid) < SEUIL_OUTLIER
+        dans le groupe de racine donnée.
+
+        Appelé uniquement si |G| <= MAX_GROUPE_OUTLIER_CHECK pour limiter
+        le coût O(|G|) sur les grands groupes.
+
+        Retourne : liste de (prénom, sim_centroid).
+        """
+        membres = self.membres.get(racine, [])
+        if len(membres) > MAX_GROUPE_OUTLIER_CHECK:
+            return []
+
+        centroid = self.centroids[racine]
+        outliers = []
+        for k in membres:
+            sim = float(np.dot(self.embs[k], centroid))
+            if sim < SEUIL_OUTLIER:
+                outliers.append((self.prenoms[k], round(sim, 4)))
+        return outliers
 
 
 # ---------------------------------------------------------------------------
@@ -613,6 +780,7 @@ def main():
     global BONUS_LANGUE, BONUS_GEO, N_EVAL_PAIRES
     global MAX_LIES_REF, SEUIL_TEXTE_GENERIQUE_N, SEUIL_RADICAL_N
     global MIN_LEN_FUSION, MIN_TOKENS_TEXTE
+    global SEUIL_CENTROID, SEUIL_OUTLIER, MAX_GROUPE_OUTLIER_CHECK
 
     parser = argparse.ArgumentParser(
         description="Regroupement prenoms : N1 lies > N2 CamemBERT+FAISS."
@@ -627,6 +795,9 @@ def main():
     parser.add_argument("--seuil_radical_n",         type=int,   default=SEUIL_RADICAL_N)
     parser.add_argument("--min_len_fusion",          type=int,   default=MIN_LEN_FUSION)
     parser.add_argument("--min_tokens_texte",        type=int,   default=MIN_TOKENS_TEXTE)
+    parser.add_argument("--seuil_centroid",          type=float, default=SEUIL_CENTROID)
+    parser.add_argument("--seuil_outlier",           type=float, default=SEUIL_OUTLIER)
+    parser.add_argument("--max_groupe_outlier_check",type=int,   default=MAX_GROUPE_OUTLIER_CHECK)
     parser.add_argument(
         "--force_recompute", action="store_true",
         help="Supprime les caches embeddings et paires avant de recalculer.",
@@ -643,6 +814,9 @@ def main():
     SEUIL_RADICAL_N         = args.seuil_radical_n
     MIN_LEN_FUSION          = args.min_len_fusion
     MIN_TOKENS_TEXTE        = args.min_tokens_texte
+    SEUIL_CENTROID          = args.seuil_centroid
+    SEUIL_OUTLIER           = args.seuil_outlier
+    MAX_GROUPE_OUTLIER_CHECK = args.max_groupe_outlier_check
 
     log.info(
         "Parametres : FAISS=%.2f FINAL=%.2f BL=%.2f BG=%.2f K=%d "
@@ -714,8 +888,37 @@ def main():
         candidats = _voisins_brute(embs, uf, prenoms, textes_cam, indices_gen, pref_bloc, K_VOISINS_SEM)
 
     paires_n2 = scorer_paires_sem(candidats, langues, geos)
-    n_fus_n2  = sum(1 for i, j, _ in paires_n2 if uf.union(i, j))
-    log.info("Fusions N2 : %d / %d paires", n_fus_n2, len(paires_n2))
+
+    # Fusion N2 avec vérification de cohésion centroid
+    gg          = GestionGroupes(embs, prenoms)
+    n_fus_n2    = 0
+    n_bloc_cent = 0
+    tous_outliers: list = []   # (groupe_racine, [(prenom, sim), ...])
+
+    for i, j, _ in paires_n2:
+        if uf.meme_groupe(i, j):
+            continue
+        if not gg.fusion_coherente(i, j, uf):
+            n_bloc_cent += 1
+            continue
+        if uf.union(i, j):
+            n_fus_n2 += 1
+            gg.appliquer_fusion(i, j, uf)
+            racine   = uf.find(i)
+            outliers = gg.detecter_outliers(racine)
+            if outliers:
+                tous_outliers.append((racine, outliers))
+
+    log.info(
+        "Fusions N2 : %d / %d paires | bloques centroid : %d",
+        n_fus_n2, len(paires_n2), n_bloc_cent,
+    )
+    if tous_outliers:
+        n_outliers_total = sum(len(o) for _, o in tous_outliers)
+        log.warning(
+            "Outliers detectes : %d prenoms dans %d groupes (sim < %.2f)",
+            n_outliers_total, len(tous_outliers), SEUIL_OUTLIER,
+        )
 
     sauvegarder_cache_paires(CACHE_PAIRES, paires_n2)
 
@@ -725,7 +928,7 @@ def main():
     log_stats(labels)
 
     exporter(data, labels, OUTPUT_GROUPED, OUTPUT_GROUPES)
-    generer_evaluation(data, labels, N_EVAL_PAIRES, OUTPUT_EVAL)
+    generer_evaluation(data, labels, tous_outliers, N_EVAL_PAIRES, OUTPUT_EVAL)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+
+{% block title %}Notebooks - Etymia{% endblock %}
+
+{% block extra_css %}
+<style>
+  .notebook-container {
+    max-width: 900px;
+    margin: 3rem auto;
+    padding: 0 1.5rem;
+  }
+  .page-header {
+    text-align: center;
+    margin-bottom: 3rem;
+  }
+  .page-header h1 {
+    font-family: 'Libre Baskerville', serif;
+    color: var(--navy);
+    font-size: 2.5rem;
+    margin-bottom: 0.5rem;
+  }
+  .page-header p {
+    color: var(--text-soft);
+    font-size: 1.1rem;
+  }
+  
+  .notebook-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1.5rem;
+  }
+  
+  .notebook-card {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    box-shadow: var(--shadow);
+    transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    text-decoration: none;
+    color: inherit;
+    position: relative;
+    overflow: hidden;
+  }
+  
+  .notebook-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 10px 20px rgba(0,0,0,0.08);
+    border-color: var(--gold);
+    color: inherit;
+  }
+  
+  .notebook-card i {
+    font-size: 2rem;
+    color: var(--gold);
+    margin-bottom: 1rem;
+  }
+  
+  .notebook-name {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.3rem;
+    font-weight: 600;
+    color: var(--navy);
+    margin-bottom: 0.5rem;
+    line-height: 1.2;
+  }
+  
+  .notebook-path {
+    font-size: 0.75rem;
+    color: var(--text-soft);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  
+  .notebook-card::after {
+    content: 'Ouvrir';
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    background: var(--gold);
+    color: white;
+    padding: 0.3rem 1rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    border-top-left-radius: 8px;
+    opacity: 0;
+    transform: translateY(100%);
+    transition: all 0.2s;
+  }
+  
+  .notebook-card:hover::after {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .no-notebooks {
+    text-align: center;
+    padding: 4rem;
+    background: var(--cream);
+    border: 1px dashed var(--border);
+    border-radius: 12px;
+    color: var(--text-soft);
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="notebook-container fade-up">
+  <div class="page-header">
+    <h1>Analyses & Notebooks</h1>
+    <p>Visualisez les étapes de préparation et l'analyse exploratoire des données.</p>
+  </div>
+
+  {% if notebooks %}
+  <div class="notebook-grid">
+    {% for nb in notebooks %}
+    <a href="/notebook/view?path={{ nb.path }}" class="notebook-card">
+      <div>
+        <i class="bi bi-journal-code"></i>
+        <div class="notebook-name">{{ nb.name | replace('.ipynb', '') | replace('_', ' ') | title }}</div>
+        <div class="notebook-path">{{ nb.path }}</div>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="no-notebooks">
+    <p>Aucun notebook Jupyter (.ipynb) n'a été trouvé à la racine ou dans les répertoires `noms` et `prenoms`.</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

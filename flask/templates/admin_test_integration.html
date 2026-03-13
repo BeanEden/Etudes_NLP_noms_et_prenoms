@@ -1,0 +1,462 @@
+{% extends "base.html" %}
+
+{% block title %}Test d'Intégration Prénom - Administration — Etymia{% endblock %}
+
+{% block head %}
+<style>
+  .admin-hero {
+    padding: 3rem 0;
+    text-align: center;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 2.5rem;
+  }
+  .admin-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 2.8rem;
+    font-weight: 300;
+    color: var(--navy);
+  }
+  .admin-sub {
+    font-size: 0.95rem;
+    color: var(--text-soft);
+    font-style: italic;
+    margin-top: 0.5rem;
+  }
+
+  .test-container {
+    max-width: 900px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 2rem;
+  }
+
+  .card {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 2rem;
+    box-shadow: var(--shadow);
+  }
+
+  .form-group {
+    margin-bottom: 1.5rem;
+  }
+  .form-group label {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--navy-mid);
+    margin-bottom: 0.4rem;
+  }
+  .form-group input, .form-group textarea {
+    width: 100%;
+    padding: 0.8rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-family: 'Libre Baskerville', serif;
+    font-size: 1rem;
+  }
+  .form-group textarea {
+    height: 150px;
+    resize: vertical;
+  }
+
+  .btn-test {
+    display: block;
+    width: 100%;
+    padding: 1.2rem;
+    background: var(--gold);
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    font-family: 'Libre Baskerville', serif;
+    font-size: 1rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
+  }
+  .btn-test:hover {
+    background: var(--gold-light);
+  }
+  .btn-test:active {
+    transform: scale(0.98);
+  }
+
+  /* --- Results area --- */
+  .results-area {
+    display: none;
+    margin-top: 3rem;
+  }
+  .step-card {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    box-shadow: var(--shadow);
+    border-left: 4px solid var(--navy-light);
+  }
+  .step-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.3rem;
+    font-weight: 600;
+    color: var(--navy);
+    margin-bottom: 1rem;
+    display: flex;
+    justify-content: space-between;
+  }
+  .step-badge {
+    font-size: 0.7rem;
+    padding: 0.2rem 0.5rem;
+    background: var(--cream);
+    color: var(--navy-light);
+    border-radius: 4px;
+    text-transform: uppercase;
+  }
+
+  .log-line {
+    font-family: monospace;
+    font-size: 0.9rem;
+    margin-bottom: 0.4rem;
+    color: var(--text);
+  }
+  .log-line b { color: var(--navy); }
+
+  .comparison-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1rem;
+    font-size: 0.85rem;
+  }
+  .comparison-table th {
+    text-align: left;
+    padding: 0.8rem;
+    background: var(--cream);
+    color: var(--navy);
+    font-family: 'Cormorant Garamond', serif;
+    border-bottom: 2px solid var(--border);
+  }
+  .comparison-table td {
+    padding: 0.8rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .decision-badge {
+    padding: 0.2rem 0.6rem;
+    border-radius: 4px;
+    font-weight: 600;
+    font-size: 0.75rem;
+  }
+  .decision-fusion { background: #e8f5e9; color: #2e7d32; border: 1px solid #c8e6c9; }
+  .decision-rejet { background: #ffebee; color: #c62828; border: 1px solid #ffcdd2; }
+
+  .lies-chips { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+  .lies-chip {
+    font-size: 0.72rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 10px;
+    background: var(--cream-dark);
+    color: var(--navy);
+    border: 1px solid var(--border);
+    text-decoration: none;
+    transition: background 0.15s;
+  }
+  .lies-chip:hover { background: var(--gold-light); color: #fff; border-color: var(--gold); }
+  .lies-empty { font-style: italic; font-size: 0.8rem; color: var(--text-soft); }
+
+  .f1-bar-wrap { display: flex; align-items: center; gap: 0.5rem; }
+  .f1-bar { height: 8px; border-radius: 4px; background: var(--gold); transition: width 0.4s; }
+  .f1-value { font-size: 0.8rem; font-weight: 700; color: var(--navy); min-width: 40px; }
+
+  .summary-card {
+    background: var(--navy);
+    color: var(--cream);
+    border-radius: 8px;
+    padding: 1.5rem 2rem;
+    margin-bottom: 1.5rem;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.5rem;
+    text-align: center;
+  }
+  .summary-item-label { font-size: 0.7rem; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.7; margin-bottom: 0.4rem; }
+  .summary-item-value { font-family: 'Cormorant Garamond', serif; font-size: 2rem; font-weight: 300; }
+  .summary-item-fusion { color: #81c784; }
+  .summary-item-rejet { color: #e57373; }
+
+  .loader {
+    display: none;
+    text-align: center;
+    padding: 2rem;
+  }
+  .spinner {
+    display: inline-block;
+    width: 40px;
+    height: 40px;
+    border: 4px solid rgba(184, 151, 58, 0.1);
+    border-top: 4px solid var(--gold);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+  @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="admin-hero fade-up">
+  <h1 class="admin-title">Test d'Intégration</h1>
+  <p class="admin-sub">Simulez l'ajout d'un nouveau prénom dans la base de données</p>
+</div>
+
+<div class="test-container fade-up-2">
+  <div class="card">
+    <form id="test-form">
+      <div class="form-group" style="position: relative;">
+        <label for="prenom">Prénom à tester</label>
+        <div style="display: flex; gap: 0.5rem; align-items: center;">
+            <input type="text" id="prenom" name="prenom" placeholder="Ex: Elara, Zephyrin..." autocomplete="off" required style="flex: 1;">
+            <div id="existence-indicator" style="font-size: 0.75rem; font-weight: bold; width: 120px;"></div>
+        </div>
+        <ul class="search-ac" id="test-ac" style="display:none; position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid var(--border); border-radius: 4px; z-index: 1000; list-style: none; padding: 0; box-shadow: var(--shadow);"></ul>
+      </div>
+      <div class="form-group">
+        <label for="texte">Histoire / Étymologie (Texte brut)</label>
+        <textarea id="texte" name="texte" placeholder="Saisissez ici le texte descriptif du prénom..." required></textarea>
+      </div>
+      <button type="submit" class="btn-test" id="btn-submit">Analyser l'intégration</button>
+    </form>
+  </div>
+
+  <div class="loader" id="loader">
+    <div class="spinner"></div>
+    <p style="margin-top:1rem; color:var(--text-soft); font-style:italic;">Chargement de l'IA CamemBERT et calcul des embeddings...</p>
+  </div>
+
+  <div class="results-area" id="results">
+    <!-- Etape 1 -->
+    <div class="step-card">
+      <div class="step-title">
+        1. Analyse de Texte &amp; Préparation
+        <span class="step-badge">NLP Initial</span>
+      </div>
+      <div id="step1-content"></div>
+    </div>
+
+    <!-- Etape 2 & 3 -->
+    <div class="step-card">
+      <div class="step-title">
+        2. Embedding sémantique
+        <span class="step-badge">CamemBERT</span>
+      </div>
+      <div id="step2-content"></div>
+    </div>
+
+    <!-- Étape 3 -->
+    <div class="step-card">
+      <div class="step-title">
+        3. Résultats du Regroupement
+        <span class="step-badge">Similarity Search + Fusion Rules</span>
+      </div>
+
+      <!-- Résumé F1 -->
+      <div class="summary-card" id="summary-card" style="display:none;">
+        <div>
+          <div class="summary-item-label">F1 Score (moyen)</div>
+          <div class="summary-item-value" id="summary-f1">—</div>
+        </div>
+        <div>
+          <div class="summary-item-label">Meilleur candidat</div>
+          <div class="summary-item-value" style="font-size:1.3rem;" id="summary-best">—</div>
+        </div>
+        <div>
+          <div class="summary-item-label">Décision</div>
+          <div class="summary-item-value" id="summary-decision">—</div>
+        </div>
+      </div>
+
+      <div id="step3-content">
+        <table class="comparison-table">
+          <thead>
+            <tr>
+              <th>Candidat (Voisin FAISS)</th>
+              <th>Groupe</th>
+              <th>Prénoms liés</th>
+              <th>Similarité</th>
+              <th>Langue</th>
+              <th>Géo</th>
+              <th>Score Final</th>
+              <th>F1 Score</th>
+              <th>Décision</th>
+            </tr>
+          </thead>
+          <tbody id="comparison-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // --- Autocomplétion & Vérification d'existence ---
+  (function() {
+    const input = document.getElementById('prenom');
+    const acList = document.getElementById('test-ac');
+    const indicator = document.getElementById('existence-indicator');
+    let timer;
+
+    input.addEventListener('input', function() {
+      clearTimeout(timer);
+      const q = this.value.trim();
+      
+      if (q.length < 2) {
+        acList.style.display = 'none';
+        indicator.innerHTML = '';
+        return;
+      }
+
+      timer = setTimeout(() => {
+        // Appeler l'API de recherche existante
+        fetch(`/api/search?q=${encodeURIComponent(q)}&filter=prenom`)
+          .then(r => r.json())
+          .then(data => {
+            // Vérifier existence exacte
+            const matchExact = data.find(d => d.nom.toLowerCase() === q.toLowerCase());
+            if (matchExact) {
+              indicator.innerHTML = '<span style="color:#c62828;">⚠️ Déjà existant</span>';
+              indicator.title = "Ce prénom est déjà présent dans la base de données.";
+            } else {
+              indicator.innerHTML = '<span style="color:#2e7d32;">✨ Nouveau</span>';
+              indicator.title = "Ce prénom ne semble pas exister dans la base.";
+            }
+
+            // Afficher autocomplétion
+            if (data.length > 0) {
+              acList.innerHTML = data.slice(0, 5).map(d => `
+                <li style="padding: 0.6rem 1rem; border-bottom: 1px solid var(--cream); cursor: pointer; font-size: 0.9rem;"
+                    onclick="document.getElementById('prenom').value='${d.nom_original.split(' (')[0]}'; document.getElementById('test-ac').style.display='none';">
+                  <b>${d.nom_original}</b>
+                </li>
+              `).join('');
+              acList.style.display = 'block';
+            } else {
+              acList.style.display = 'none';
+            }
+          });
+      }, 200);
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!input.contains(e.target) && !acList.contains(e.target)) acList.style.display = 'none';
+    });
+  })();
+
+  document.getElementById('test-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const btn = document.getElementById('btn-submit');
+    const loader = document.getElementById('loader');
+    const results = document.getElementById('results');
+    
+    btn.disabled = true;
+    loader.style.display = 'block';
+    results.style.display = 'none';
+    
+    const formData = new FormData(this);
+    const data = Object.fromEntries(formData.entries());
+    
+    fetch('/api/admin/tester_integration', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    })
+    .then(res => res.json())
+    .then(resp => {
+      btn.disabled = false;
+      loader.style.display = 'none';
+      
+      if (resp.status === 'success') {
+        results.style.display = 'block';
+        
+        // Step 1
+        let s1 = `<div class="log-line"><b>Prénom normalisé :</b> ${resp.data.step1.prenom_norm}</div>`;
+        s1 += `<div class="log-line"><b>Langue détectée :</b> ${resp.data.step1.langue || 'Inconnue'}</div>`;
+        s1 += `<div class="log-line"><b>Géo détectée :</b> ${resp.data.step1.geo || 'Inconnue'}</div>`;
+        if (resp.data.step1.liens_lev.length > 0) {
+            s1 += `<div class="log-line" style="margin-top:0.5rem;"><b>Liens orthographiques proches :</b></div>`;
+            resp.data.step1.liens_lev.forEach(l => {
+                s1 += `<div class="log-line" style="margin-left:1rem;">- ${l[0]} (distance: ${l[1]})</div>`;
+            });
+        }
+        document.getElementById('step1-content').innerHTML = s1;
+        
+        // Step 2
+        document.getElementById('step2-content').innerHTML = `
+            <div class="log-line"><b>Texte envoyé au modèle :</b> ${resp.data.step2.texte_emb}</div>
+            <div class="log-line"><b>Dimensions du vecteur d'embedding :</b> 768</div>
+            <div class="log-line"><b>Recherche effectuée sur :</b> ${resp.data.step2.total_vectors} prénoms en base.</div>
+        `;
+        
+        // Step 3 — Table + F1
+        let tableHtml = '';
+        resp.data.matches.forEach(m => {
+            const decisionClass = m.decision === 'FUSION' ? 'decision-fusion' : 'decision-rejet';
+            const f1Pct = Math.round(m.f1 * 100);
+            const f1Color = m.f1 >= 0.92 ? '#43a047' : m.f1 >= 0.80 ? '#fb8c00' : '#e53935';
+            
+            // Prénoms liés
+            let liesHtml = '<span class="lies-empty">Aucun</span>';
+            if (m.lies && m.lies.length > 0) {
+                liesHtml = '<div class="lies-chips">' + m.lies.map(p => 
+                    `<a href="/prenom/${encodeURIComponent(p.toLowerCase().replace(/ /g, '_'))}" class="lies-chip" target="_blank">${p}</a>`
+                ).join('') + '</div>';
+            }
+
+            tableHtml += `
+                <tr>
+                    <td><b>${m.nom}</b></td>
+                    <td><span class="step-badge">${m.id_groupe}</span></td>
+                    <td>${liesHtml}</td>
+                    <td>${m.sim.toFixed(4)}</td>
+                    <td>${m.langue || '-'}</td>
+                    <td>${m.geo || '-'}</td>
+                    <td><b>${m.score.toFixed(4)}</b></td>
+                    <td>
+                      <div class="f1-bar-wrap">
+                        <div class="f1-bar" style="width:${f1Pct}px; max-width:80px; background:${f1Color};"></div>
+                        <span class="f1-value" style="color:${f1Color};">${m.f1.toFixed(3)}</span>
+                      </div>
+                    </td>
+                    <td><span class="decision-badge ${decisionClass}">${m.decision}</span></td>
+                </tr>
+            `;
+        });
+        document.getElementById('comparison-body').innerHTML = tableHtml;
+
+        // Résumé global
+        if (resp.data.summary) {
+            const s = resp.data.summary;
+            const summaryCard = document.getElementById('summary-card');
+            summaryCard.style.display = 'grid';
+            document.getElementById('summary-f1').textContent = (s.global_f1 * 100).toFixed(1) + '%';
+            document.getElementById('summary-best').textContent = s.best_candidate || '—';
+            const decEl = document.getElementById('summary-decision');
+            decEl.textContent = s.best_decision || '—';
+            decEl.className = 'summary-item-value ' + (s.best_decision === 'FUSION' ? 'summary-item-fusion' : 'summary-item-rejet');
+        }
+        
+      } else {
+        alert("Erreur: " + resp.error);
+      }
+    })
+    .catch(err => {
+      btn.disabled = false;
+      loader.style.display = 'none';
+      alert("Erreur réseau: " + err);
+    });
+  });
+</script>
+{% endblock %}

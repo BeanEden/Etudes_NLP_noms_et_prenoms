@@ -3,144 +3,173 @@
 {% block title %}Statistiques Globales — Etymia{% endblock %}
 
 {% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
-  .hero {
-    text-align: center;
-    padding: 5rem 1rem 3.5rem;
-  }
-  .hero-eyebrow {
-    font-family: 'Cormorant Garamond', serif;
-    font-size: 0.82rem;
-    letter-spacing: 0.22em;
-    text-transform: uppercase;
-    color: var(--gold);
-    margin-bottom: 1.1rem;
-  }
-  .hero h1 {
-    font-family: 'Cormorant Garamond', serif;
-    font-size: clamp(2.8rem, 6vw, 4.4rem);
-    font-weight: 300;
-    color: var(--navy);
-    line-height: 1.15;
-    letter-spacing: -0.01em;
-    margin-bottom: 0.4rem;
-  }
+  .hero { text-align: center; padding: 4rem 1rem 2rem; }
+  .hero-eyebrow { font-family: 'Cormorant Garamond', serif; font-size: 0.82rem; letter-spacing: 0.22em; text-transform: uppercase; color: var(--gold); margin-bottom: 0.5rem; }
+  .hero h1 { font-family: 'Cormorant Garamond', serif; font-size: 3.5rem; font-weight: 300; color: var(--navy); margin-bottom: 0.4rem; }
   
-  .stats-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: 1.5rem;
-    max-width: 900px;
-    margin: 0 auto 3rem;
-  }
-  .stat-card {
-    background: #fff;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 2rem;
-    text-align: center;
-    box-shadow: var(--shadow);
-  }
-  .stat-val {
-    font-family: 'Cormorant Garamond', serif;
-    font-size: 3rem;
-    color: var(--gold);
-    line-height: 1;
-    margin-bottom: 0.5rem;
-  }
-  .stat-val small { font-size: 1.5rem; color: var(--text-soft); }
-  .stat-desc {
-    font-size: 0.85rem;
-    color: var(--navy);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
+  .stats-container { max-width: 1200px; margin: 0 auto; padding: 0 1.5rem 5rem; }
   
-  /* Tables */
-  .tables-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 2rem;
-    max-width: 1000px;
-    margin: 0 auto 4rem;
-  }
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; margin-bottom: 3rem; }
+  .stat-card { background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 1.5rem; text-align: center; box-shadow: var(--shadow); }
+  .stat-val { font-family: 'Cormorant Garamond', serif; font-size: 2.5rem; color: var(--gold); margin-bottom: 0.2rem; }
+  .stat-desc { font-size: 0.8rem; color: var(--navy); text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.8; }
+  
+  .charts-section { display: grid; grid-template-columns: 2fr 1fr; gap: 2rem; margin-bottom: 4rem; }
+  @media(max-width: 900px) { .charts-section { grid-template-columns: 1fr; } }
+  
+  .chart-card { background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 1.5rem; box-shadow: var(--shadow); }
+  .chart-card h3 { font-family: 'Cormorant Garamond', serif; font-size: 1.4rem; color: var(--navy); margin-bottom: 1.5rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
+  
+  .tables-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
   @media(max-width: 768px) { .tables-grid { grid-template-columns: 1fr; } }
   
-  .top-table {
-    background: #fff;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    overflow: hidden;
-  }
-  .top-table h2 {
-    background: var(--navy);
-    color: var(--cream);
-    padding: 1rem;
-    margin: 0;
-    font-family: 'Cormorant Garamond', serif;
-    font-size: 1.4rem;
-    text-align: center;
-  }
+  .top-table { background: #fff; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; box-shadow: var(--shadow); }
+  .top-table h2 { background: var(--navy); color: var(--cream); padding: 1rem; margin: 0; font-family: 'Cormorant Garamond', serif; font-size: 1.3rem; text-align: center; }
   .top-list { list-style: none; padding: 0; margin: 0; }
-  .top-list li {
-    display: flex;
-    justify-content: space-between;
-    padding: 1rem 1.5rem;
-    border-bottom: 1px solid var(--border);
-  }
+  .top-list li { display: flex; justify-content: space-between; align-items: center; padding: 0.8rem 1.2rem; border-bottom: 1px solid var(--border); transition: background 0.15s; }
+  .top-list li:hover { background: rgba(184,151,58,0.03); }
   .top-list li:last-child { border-bottom: none; }
-  .top-list li span:first-child { font-weight: 600; color: var(--navy); }
-  .top-list li span:last-child { color: var(--text-soft); font-style: italic; font-size: 0.9rem; }
+  .top-list a { color: var(--navy); text-decoration: none; font-weight: 600; font-size: 0.95rem; }
+  .top-list a:hover { color: var(--gold); }
+  .count-pill { background: var(--cream-dark); color: var(--navy); padding: 0.2rem 0.6rem; border-radius: 12px; font-size: 0.75rem; font-weight: 700; font-family: sans-serif; }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="hero fade-up">
-  <p class="hero-eyebrow">Etymia en Chiffres</p>
-  <h1>Statistiques<br>Globales</h1>
-</div>
+<div class="stats-container">
+  <div class="hero fade-up">
+    <p class="hero-eyebrow">Etymia Insights</p>
+    <h1>Statistiques de la Base</h1>
+  </div>
 
-<div class="stats-grid fade-up-2">
-  <div class="stat-card">
-    <div class="stat-val">{{ "{:,}".format(total_noms).replace(',', ' ') }}</div>
-    <div class="stat-desc">Noms de famille documentés</div>
+  <!-- Chiffres clés -->
+  <div class="stats-grid fade-up-2">
+    <div class="stat-card">
+      <div class="stat-val">{{ "{:,}".format(total_noms).replace(',', ' ') }}</div>
+      <div class="stat-desc">Noms documentés</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-val">{{ "{:,}".format(total_prenoms).replace(',', ' ') }}</div>
+      <div class="stat-desc">Prénoms répertoriés</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-val">{{ "{:,}".format(total_groupes_noms).replace(',', ' ') }}</div>
+      <div class="stat-desc">Groupes de variantes</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-val">{{ "{:,}".format(total_groupes_prenoms).replace(',', ' ') }}</div>
+      <div class="stat-desc">Liens étymologiques</div>
+    </div>
   </div>
-  <div class="stat-card">
-    <div class="stat-val">{{ "{:,}".format(total_prenoms).replace(',', ' ') }}</div>
-    <div class="stat-desc">Prénoms répertoriés</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-val">{{ "{:,}".format(total_groupes_noms).replace(',', ' ') }}</div>
-    <div class="stat-desc">Groupes de noms (variantes)</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-val">{{ "{:,}".format(total_groupes_prenoms).replace(',', ' ') }}</div>
-    <div class="stat-desc">Groupes de prénoms liés</div>
-  </div>
-</div>
 
-<div class="tables-grid fade-up-3">
-  <div class="top-table">
-    <h2>Noms les plus fréquents (1891-2000)</h2>
-    <ul class="top-list">
-      {% for n in top_noms %}
+  <!-- Graphiques -->
+  <div class="charts-section fade-up-3">
+    <div class="chart-card">
+      <h3>Distribution Chronologique (Naissances cumulées)</h3>
+      <canvas id="timelineChart" style="max-height: 350px;"></canvas>
+    </div>
+    <div class="chart-card">
+      <h3>Origines Linguistiques</h3>
+      <canvas id="langChart" style="max-height: 350px;"></canvas>
+    </div>
+  </div>
+
+  <!-- Tableaux Top -->
+  <div class="tables-grid fade-up-4">
+    <div class="top-table">
+      <h2>Top Noms (Popularité Totale)</h2>
+      <ul class="top-list">
+        {% for n in top_noms %}
+          <li>
+            <a href="/nom/{{ n.nom }}">{{ n.nom_original }}</a>
+            <span class="count-pill">{{ "{:,}".format(n.insee_data.nombre_total).replace(',', ' ') }}</span>
+          </li>
+        {% endfor %}
+      </ul>
+    </div>
+    
+    <div class="top-table">
+      <h2>Top Prénoms (Popularité Totale)</h2>
+      <ul class="top-list">
+        {% for p in top_prenoms %}
+          <li>
+            <a href="/prenom/{{ p.prenom }}">{{ p.prenom_original }}</a>
+            <span class="count-pill">{{ "{:,}".format(p.total).replace(',', ' ') }}</span>
+          </li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+
+  <div class="top-table fade-up-4" style="margin-top:2rem;">
+    <h2>Tendances Actuelles (Pics récents >= 2018)</h2>
+    <ul class="top-list" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));">
+      {% for p in trending_prenoms %}
         <li>
-          <a href="/nom/{{ n.nom }}" style="text-decoration:none;"><span>{{ n.nom_original }}</span></a>
-          <span>{{ "{:,}".format(n.insee_data.nombre_total).replace(',', ' ') }} naissances</span>
+          <a href="/prenom/{{ p.prenom }}">{{ p.prenom_original }}</a>
+          <span>Pic en <strong>{{ p.pic_annee }}</strong></span>
         </li>
       {% endfor %}
     </ul>
   </div>
-  
-  <div class="top-table">
-    <h2>Prénoms les plus donnés (1900-2024)</h2>
-    <ul class="top-list">
-      {% for p in top_prenoms %}
-        <li>
-          <a href="/prenom/{{ p.prenom }}" style="text-decoration:none;"><span>{{ p.prenom_original }}</span></a>
-        </li>
-      {% endfor %}
-    </ul>
-  </div>
 </div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const navy = '#1A2B4A';
+    const gold = '#B8973A';
+    const cream = '#EDE7D9';
+
+    // Timeline Chart
+    const timelineData = {{ timeline | tojson }};
+    new Chart(document.getElementById('timelineChart'), {
+      type: 'line',
+      data: {
+        labels: timelineData.map(d => d.annee),
+        datasets: [{
+          label: 'Volume de naissances documentées',
+          data: timelineData.map(d => d.count),
+          borderColor: gold,
+          backgroundColor: 'rgba(184, 151, 58, 0.1)',
+          fill: true,
+          tension: 0.3,
+          pointRadius: 0
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { beginAtZero: true, ticks: { callback: v => v >= 1000 ? (v/1000)+'k' : v } }
+        }
+      }
+    });
+
+    // Lang Chart
+    const langLabels = {{ top_langs | map(attribute=0) | list | tojson }};
+    const langValues = {{ top_langs | map(attribute=1) | list | tojson }};
+    new Chart(document.getElementById('langChart'), {
+      type: 'doughnut',
+      data: {
+        labels: langLabels,
+        datasets: [{
+          data: langValues,
+          backgroundColor: [
+            '#1A2B4A', '#B8973A', '#2C3E5D', '#D4B05A', '#3D5278', 
+            '#5A5A5A', '#EDE7D9', '#8A712C', '#4C5D7A', '#111A2E'
+          ],
+          borderWidth: 0
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: { 
+          legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } }
+        }
+      }
+    });
+  });
+</script>
 {% endblock %}
