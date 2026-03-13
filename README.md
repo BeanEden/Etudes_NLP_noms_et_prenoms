@@ -4,7 +4,54 @@
 
 ---
 
-## 📁 Architecture du Projet
+## Sommaire
+
+- [Fonctionnalités clés](#-fonctionnalités-clés)
+- [Techniques NLP employées](#-techniques-nlp-employées)
+- [Architecture du Projet](#-architecture-du-projet)
+- [Flux de données](#-flux-de-données)
+- [Interface Web — Routes principales](#-interface-web--routes-principales)
+  - [Accueil — Recherche (`/`)](#-accueil--recherche-)
+  - [Fiche Prénom (`/prenom/<prenom>`)](#-fiche-prénom-prenomprenom)
+  - [Statistiques Globales (`/stats`)](#-statistiques-globales-stats)
+  - [Comparateur (`/compare`)](#️-comparateur-compare)
+  - [Administration NLP — Regroupement (`/admin/regroupement`)](#️-administration-nlp--regroupement-adminregroupement)
+  - [Test d'Intégration (`/admin/test_integration`)](#-test-dintégration-admintest_integration)
+  - [Notebooks Jupyter (`/notebooks`)](#-notebooks-jupyter-notebooks)
+- [Installation & Utilisation](#️-installation--utilisation)
+- [Évaluation](#-évaluation)
+- [Crédits](#crédits)
+
+---
+
+## Fonctionnalités clés
+
+- **Exploration Sémantique** : Regroupement intelligent des noms et prénoms par origine étymologique et proximité phonétique.
+- **Enrichissement Historique** : Intégration massive des données de l'INSEE (1891-2024) pour une analyse démographique précise.
+- **Interface Interactive** : Visualisation des relations sous forme de graphes et de courbes de popularité dynamiques.
+- **Administration NLP** : Tuning en direct des modèles et simulateur d'intégration pour tester de nouvelles données.
+- **Analyse Exploratoire** : Intégration de notebooks Jupyter pour l'évaluation et l'exploration des données.
+- **Pipeline Automatisé** : Scripts de traitement de bout en bout, de la collecte (scraping) à la mise en ligne.
+
+---
+
+## Techniques NLP employées
+
+| Étape | Prénoms | Noms de Famille |
+|---|---|---|
+| **Nettoyage** | Regex, conservation casse | SpaCy, Lemmatisation |
+| **Extraction Métadonnées** | Regex (langue, religion, géo, date) | Regex (origines, variantes) |
+| **Liens Directs** | Levenshtein adaptatif (seuil 1–3) | Levenshtein + Regex sections |
+| **Représentation** | CamemBERT (sentence-transformers, 768d) | TF-IDF vectorisé |
+| **Recherche de similarité** | FAISS (IndexFlatIP, cosine) | Jaro-Winkler pairwise |
+| **Clustering** | Union-Find (seuil ≥ 0.91) | Union-Find (seuil ≥ 0.55) |
+| **Post-validation** | — | NER CamemBERT-NER |
+| **Résumé** | Paraphrase (Camembert2Camembert) | Extractif (centroïde TF-IDF) |
+| **Enrichissement** | INSEE Parquet (naissances 1900–2024) | INSEE DBF (1891–2000) |
+
+---
+
+## Architecture du Projet
 
 ```
 Etymia/
@@ -85,7 +132,7 @@ Etymia/
 
 ---
 
-## 🔄 Flux de données
+## Flux de données
 
 ```
 [Scraping Web]
@@ -114,26 +161,78 @@ prenoms/data/1_prenoms_detail.json   noms/data/0_names.json + 0_origins.json
                    flask/app.py
                   (Interface Web)
 ```
+## Interface Web — Routes principales
 
 ---
 
-## 🧠 Techniques NLP employées
+### Accueil — Recherche (`/`)
 
-| Étape | Prénoms | Noms de Famille |
-|---|---|---|
-| **Nettoyage** | Regex, conservation casse | SpaCy, Lemmatisation |
-| **Extraction Métadonnées** | Regex (langue, religion, géo, date) | Regex (origines, variantes) |
-| **Liens Directs** | Levenshtein adaptatif (seuil 1–3) | Levenshtein + Regex sections |
-| **Représentation** | CamemBERT (sentence-transformers, 768d) | TF-IDF vectorisé |
-| **Recherche de similarité** | FAISS (IndexFlatIP, cosine) | Jaro-Winkler pairwise |
-| **Clustering** | Union-Find (seuil ≥ 0.91) | Union-Find (seuil ≥ 0.55) |
-| **Post-validation** | — | NER CamemBERT-NER |
-| **Résumé** | Paraphrase (Camembert2Camembert) | Extractif (centroïde TF-IDF) |
-| **Enrichissement** | INSEE Parquet (naissances 1900–2024) | INSEE DBF (1891–2000) |
+La page d'accueil permet de rechercher un nom de famille **ou** un prénom via une barre de recherche avec autocomplétion dynamique (JSON). Elle détecte automatiquement les recherches combinées (ex. `Marie Dupont`) et propose un lien direct vers le comparateur. Les résultats affichent le type (nom / prénom), l'origine linguistique et géographique, ainsi qu'un court résumé.
+
+![Accueil — Page de recherche](images/Accueil.png)
 
 ---
 
-## 🌐 Interface Web — Routes principales
+### Fiche Prénom (`/prenom/<prenom>`)
+
+La fiche d'un prénom concentre toutes les informations enrichies issues du pipeline NLP :
+- Histoire, étymologie, signification et provenance géographique
+- Graphe de groupe (prénoms liés, vis.js)
+- Graphe de tendances INSEE (naissances par année et par département)
+- Métadonnées : langue, religion, époque, variantes
+
+![Fiche Prénom — Vue générale](images/prénom_1.png)
+![Fiche Prénom — Tendances INSEE](images/prénom_2.png)
+
+---
+
+### Statistiques Globales (`/stats`)
+
+La page de statistiques offre une vue d'ensemble de la base de données :
+- Compteurs globaux (noms, prénoms, groupes)
+- Graphiques interactifs : distribution linguistique, répartition géographique, chronologie des naissances
+- Top 10 des noms et prénoms les plus fréquents
+- Prénoms "en tendance" (pic de popularité récent ≥ 2018)
+
+![Statistiques globales](images/statistiques.png)
+
+---
+
+### Comparateur (`/compare`)
+
+La page de comparaison permet de mettre côte à côte un nom de famille et un prénom (ou deux entités du même type) sur une **chronologie unifiée**. Les courbes de popularité INSEE sont superposées sur un graphique Chart.js pour visualiser les évolutions croisées.
+
+![Comparateur nom / prénom](images/comparateur.png)
+
+---
+
+### Administration NLP — Regroupement (`/admin/regroupement`)
+
+Interface d'administration permettant de relancer et de paramétrer les scripts de clustering NLP directement depuis le navigateur. Les hyperparamètres (seuils Levenshtein, sémantique, taille des groupes…) sont ajustables via des sliders, et les résultats (nombre de clusters, singletons, logs) sont affichés en temps réel.
+
+![Administration NLP — Regroupement](images/administration_nlp.png)
+
+---
+
+### Test d'Intégration (`/admin/test_integration`)
+
+Outil de simulation permettant de tester l'intégration d'un **nouveau prénom** sans modifier la base. L'utilisateur saisit un prénom et un texte descriptif ; le système calcule :
+- Les liens Levenshtein potentiels
+- La similarité sémantique (CamemBERT + FAISS)
+- Les scores finaux et la décision `FUSION` / `REJET` par rapport aux groupes existants
+
+![Test d'intégration — Formulaire](images/test_intégration%201.png)
+![Test d'intégration — Résultats](images/test_intégration%202.png)
+
+---
+
+### Notebooks Jupyter (`/notebooks`)
+
+La page liste l'ensemble des notebooks Jupyter du projet (EDA, évaluation des modèles…) et permet de les visualiser directement dans le navigateur grâce à `nbconvert`, sans avoir besoin de lancer Jupyter localement.
+
+---
+
+### Tableau récapitulatif
 
 | Route | Description |
 |---|---|
@@ -149,7 +248,7 @@ prenoms/data/1_prenoms_detail.json   noms/data/0_names.json + 0_origins.json
 
 ---
 
-## ⚙️ Installation & Utilisation
+## Installation & Utilisation
 
 ### En local
 
@@ -182,7 +281,7 @@ docker-compose run pipeline python run_pipeline.py
 
 ---
 
-## 📊 Évaluation
+## Évaluation
 
 | Métrique | Prénoms | Noms |
 |---|---|---|
@@ -197,4 +296,6 @@ Les notebooks `evaluation_noms.ipynb` et `evaluation_prenoms.ipynb` permettent d
 ---
 
 ## Crédits
+Jean-Corentin Loirat*
+
 *Projet réalisé dans le cadre du Master 2 NLP / Data Science — Sup de Vinci.*

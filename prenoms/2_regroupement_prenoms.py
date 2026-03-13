@@ -42,6 +42,8 @@ import logging
 import os
 import pickle
 import random
+import re
+import unicodedata
 import argparse
 from collections import Counter, defaultdict
 
@@ -183,8 +185,7 @@ class UnionFind:
 # NIVEAU 1 — Liens explicites (prenoms_lies)
 # ---------------------------------------------------------------------------
 
-import unicodedata
-import re as _re
+from concurrent.futures import ThreadPoolExecutor
 
 def _est_prenom_valide(p: str) -> bool:
     """

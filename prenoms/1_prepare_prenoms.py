@@ -114,17 +114,13 @@ def construire_texte_brut(item: dict) -> str:
     dans l'espace d'embedding sans modifier le modèle.
     Séparateur " | " conservé pour lisibilité dans les exports.
     """
-    # sig  = nettoyer_texte(item.get("signification", ""))
     hist = nettoyer_texte(item.get("histoire", ""))
     prov = nettoyer_texte(item.get("provenance", ""))
     ety = nettoyer_texte(item.get("etymologie", ""))
 
     parties = []
-    # if sig:
-    #     parties.append(sig)
-    
     if hist:
-        # Répétition de histoire : poids étymologique renforcé
+        # Répétition de histoire : poids étymologique renforcé dans l'espace cosine
         parties.append(hist)
         parties.append(hist)
     if prov:
@@ -449,14 +445,16 @@ def extraire_prenoms_enum(texte: str) -> list:
     return resultats
 
 
-# Termes géographiques et communs à exclure de la détection Levenshtein
+# Termes géographiques et communs à exclure de la détection Levenshtein.
+# Ces termes apparaissent souvent dans les textes d'origine mais ne sont
+# pas des prénoms ; Levenshtein les capturerait à tort sur les prénoms courts.
 _EXCLUSIONS_LEV = frozenset({
     "france", "europe", "afrique", "asie", "egypte", "rome", "paris",
     "saint", "sainte", "dieu", "bible", "coran", "islam", "christianisme",
     "janvier", "fevrier", "mars", "avril", "mai", "juin",
     "juillet", "aout", "septembre", "octobre", "novembre", "decembre",
     "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche",
-    "france", "bretagne", "alsace", "normandie", "provence",
+    "bretagne", "alsace", "normandie", "provence",
     "nord", "sud", "est", "ouest",
 })
 
