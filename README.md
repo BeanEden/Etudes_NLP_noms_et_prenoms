@@ -296,6 +296,6 @@ Les notebooks `evaluation_noms.ipynb` et `evaluation_prenoms.ipynb` permettent d
 ---
 
 ## Crédits
-Jean-Corentin Loirat*
+Jean-Corentin Loirat
 
 *Projet réalisé dans le cadre du Master 2 NLP / Data Science — Sup de Vinci.*
